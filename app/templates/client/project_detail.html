@@ -7,10 +7,10 @@
   <div class="actions">
     {% if project.railway_project_id %}
     <form method="post" action="{{ url_for('main.admin_project_sync_railway', project_id=project.id) }}">
-      <button class="btn">Sincronizar Railway</button>
+      <button class="btn"><i class="bi bi-arrow-repeat"></i> Sincronizar Railway</button>
     </form>
     {% endif %}
-    <a class="btn ghost" href="{{ url_for('main.admin_project_edit', project_id=project.id) }}">Editar</a>
+    <a class="btn ghost" href="{{ url_for('main.admin_project_edit', project_id=project.id) }}"><i class="bi bi-pencil-square"></i> Editar</a>
   </div>
   {% endif %}
 </div>
@@ -20,9 +20,21 @@
 {% endif %}
 
 <div class="grid three gap">
-  <div class="card metric"><small>Status</small><strong>{{ project.status|title }}</strong><span>{{ project.environment }}</span></div>
-<div class="card metric"><small>Custo atual</small><strong>{{ project.current_cost|brl }}</strong><span>{% if project.last_cost_update %}Atualizado em {{ project.last_cost_update.strftime('%d/%m às %H:%M') }}{% else %}sem atualização{% endif %}</span></div>
-  <div class="card metric"><small>Custo estimado</small><strong>{{ project.total_forecast|brl }}</strong><span>fim do mês pela Railway</span></div>
+  <div class="card metric">
+    <small><i class="bi bi-activity"></i> Status</small>
+    <strong>{{ project.status|title }}</strong>
+    <span>{{ project.environment or 'produção' }}</span>
+  </div>
+  <div class="card metric">
+    <small><i class="bi bi-cash-stack"></i> Custo atual</small>
+    <strong>{{ project.current_cost|brl }}</strong>
+    <span>{% if project.last_cost_update %}Atualizado em {{ project.last_cost_update.strftime('%d/%m às %H:%M') }}{% else %}sem atualização{% endif %}</span>
+  </div>
+  <div class="card metric">
+    <small><i class="bi bi-graph-up-arrow"></i> Custo estimado</small>
+    <strong>{{ project.total_forecast|brl }}</strong>
+    <span>fim do mês pela Railway</span>
+  </div>
 </div>
 
 <div class="card mt project-commercial">
@@ -32,8 +44,8 @@
     <p>{{ project.description or project.notes or 'Sem descrição comercial cadastrada.' }}</p>
     <div class="badge-row">{% for stack in project.stack_badges %}<span>{{ stack }}</span>{% else %}<span>Sem stack cadastrada</span>{% endfor %}</div>
   </div>
-  {% if project.image_url %}
-    {% set image_src = project.image_url if project.image_url.startswith('http') else url_for('static', filename=project.image_url) %}
+  {% set image_src = project_image_src(project.image_url) %}
+  {% if image_src %}
     <img src="{{ image_src }}" alt="{{ project.name }}">
   {% endif %}
 </div>

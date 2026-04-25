@@ -1,10 +1,68 @@
 {% extends 'base.html' %}
 {% block title %}Admin{% endblock %}
 {% block content %}
-<div class="section-title"><div><span class="eyebrow">Painel Admin</span><h1>Operação</h1></div><div class="actions"><form method="post" action="{{ url_for('main.admin_sync_all_railway') }}"><button class="btn ghost">Sincronizar Railway</button></form><a class="btn ghost" href="{{ url_for('main.admin_clients') }}">Clientes</a><a class="btn" href="{{ url_for('main.admin_project_new') }}">Novo projeto</a><a class="btn" href="{{ url_for('main.admin_invoice_new') }}">Nova fatura</a></div></div>
-<div class="grid four gap"><div class="card metric"><small>Clientes</small><strong>{{ clients_count }}</strong><span>cadastrados</span></div><div class="card metric"><small>Projetos</small><strong>{{ projects_count }}</strong><span>Railway</span></div><div class="card metric"><small>Pendências</small><strong>{{ pending_invoices }}</strong><span>faturas abertas</span></div><div class="card metric"><small>Recebido</small><strong>{{ paid_total|brl }}</strong><span>histórico</span></div></div>
+<div class="section-title">
+  <div>
+    <span class="eyebrow">Painel Admin</span>
+    <h1>Operação</h1>
+  </div>
+  <div class="actions">
+    <form method="post" action="{{ url_for('main.admin_sync_all_railway') }}">
+      <button class="btn ghost"><i class="bi bi-arrow-repeat"></i> Sincronizar Railway</button>
+    </form>
+    <a class="btn ghost" href="{{ url_for('main.admin_clients') }}"><i class="bi bi-people"></i> Clientes</a>
+    <a class="btn" href="{{ url_for('main.admin_project_new') }}"><i class="bi bi-plus-circle"></i> Novo projeto</a>
+    <a class="btn" href="{{ url_for('main.admin_invoice_new') }}"><i class="bi bi-receipt"></i> Nova fatura</a>
+  </div>
+</div>
+
+<div class="grid four gap">
+  <div class="card metric">
+    <small><i class="bi bi-people"></i> Clientes</small>
+    <strong>{{ clients_count }}</strong>
+    <span>cadastrados</span>
+  </div>
+  <div class="card metric">
+    <small><i class="bi bi-kanban"></i> Projetos</small>
+    <strong>{{ projects_count }}</strong>
+    <span>Railway</span>
+  </div>
+  <div class="card metric">
+    <small><i class="bi bi-exclamation-circle"></i> Pendências</small>
+    <strong>{{ pending_invoices }}</strong>
+    <span>faturas abertas</span>
+  </div>
+  <div class="card metric">
+    <small><i class="bi bi-cash-coin"></i> Recebido</small>
+    <strong>{{ paid_total|brl }}</strong>
+    <span>histórico</span>
+  </div>
+</div>
+
 <div class="grid two gap mt">
-  <div class="card"><h2>Projetos recentes</h2><div class="admin-project-list">{% for project in projects %}<a class="admin-project-item" href="{{ url_for('main.project_detail', project_id=project.id) }}">{% if project.image_url %}{% set image_src = project.image_url if project.image_url.startswith('http') else url_for('static', filename=project.image_url) %}<img src="{{ image_src }}" alt="{{ project.name }}">{% else %}<span class="project-thumb-placeholder">{{ project.name[:1] }}</span>{% endif %}<span><b>{{ project.name }}</b><small>{{ project.client.name }} · {{ project.current_cost|brl }}</small><em>{% for stack in project.stack_badges[:3] %}<i>{{ stack }}</i>{% endfor %}</em></span><strong class="pill {{ project.status }}">{{ project.status }}</strong></a>{% else %}<p class="muted">Nenhum projeto cadastrado ainda.</p>{% endfor %}</div></div>
+  <div class="card">
+    <h2>Projetos recentes</h2>
+    <div class="admin-project-list">
+      {% for project in projects %}
+      <a class="admin-project-item" href="{{ url_for('main.project_detail', project_id=project.id) }}">
+        {% set image_src = project_image_src(project.image_url) %}
+        {% if image_src %}
+          <img src="{{ image_src }}" alt="{{ project.name }}">
+        {% else %}
+          <span class="project-thumb-placeholder">{{ project.name[:1] }}</span>
+        {% endif %}
+        <span>
+          <b>{{ project.name }}</b>
+          <small>{{ project.client.name }} · {{ project.current_cost|brl }}</small>
+          <em>{% for stack in project.stack_badges[:3] %}<i>{{ stack }}</i>{% endfor %}</em>
+        </span>
+        <strong class="pill {{ project.status }}">{{ project.status }}</strong>
+      </a>
+      {% else %}
+      <p class="muted">Nenhum projeto cadastrado ainda.</p>
+      {% endfor %}
+    </div>
+  </div>
   <div class="card"><h2>Faturas recentes</h2>{% include 'partials/invoice_table.html' %}</div>
 </div>
 {% endblock %}

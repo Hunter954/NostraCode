@@ -57,8 +57,8 @@
 <section class="projects-showcase grid three gap">
   {% for project in recent_projects %}
   <article class="project-showcase-card card">
-    {% if project.image_url %}
-      {% set image_src = project.image_url if project.image_url.startswith('http') else url_for('static', filename=project.image_url) %}
+    {% set image_src = project_image_src(project.image_url) %}
+    {% if image_src %}
       <img src="{{ image_src }}" alt="{{ project.name }}">
     {% else %}
       <div class="project-placeholder">{{ project.name[:1] }}</div>

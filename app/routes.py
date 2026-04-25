@@ -1,7 +1,7 @@
 from datetime import datetime, date
 from decimal import Decimal
 from functools import wraps
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, current_app, send_from_directory
 from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db
 from .models import User, Project, Invoice, Payment, RailwayUsageSnapshot
@@ -36,11 +36,17 @@ def save_project_image(file_storage):
     if ext not in {"png", "jpg", "jpeg", "webp", "gif"}:
         flash("Use uma imagem PNG, JPG, WEBP ou GIF.", "warning")
         return None
-    upload_dir = os.path.join(current_app.root_path, "static", "uploads", "projects")
+    upload_dir = current_app.config.get("PROJECT_UPLOAD_FOLDER") or os.path.join("/data", "uploads", "projects")
     os.makedirs(upload_dir, exist_ok=True)
     unique_name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}-{filename}"
     file_storage.save(os.path.join(upload_dir, unique_name))
-    return f"uploads/projects/{unique_name}"
+    return f"/uploads/projects/{unique_name}"
+
+
+@bp.route("/uploads/projects/<path:filename>")
+def uploaded_project_image(filename):
+    upload_dir = current_app.config.get("PROJECT_UPLOAD_FOLDER") or os.path.join("/data", "uploads", "projects")
+    return send_from_directory(upload_dir, filename, max_age=86400)
 
 
 @bp.route("/")

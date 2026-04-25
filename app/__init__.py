@@ -1,7 +1,7 @@
 import os
 from datetime import date
 from decimal import Decimal
-from flask import Flask
+from flask import Flask, url_for
 from datetime import datetime
 from dotenv import load_dotenv
 from .extensions import db, login_manager
@@ -17,6 +17,11 @@ def create_app():
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+    volume_root = os.getenv("RAILWAY_VOLUME_MOUNT_PATH") or os.getenv("UPLOAD_ROOT") or "/data"
+    app.config["UPLOAD_ROOT"] = volume_root
+    app.config["PROJECT_UPLOAD_FOLDER"] = os.path.join(volume_root, "uploads", "projects")
+
 
     db.init_app(app)
     login_manager.init_app(app)
@@ -52,6 +57,14 @@ def create_app():
         if not value:
             return "-"
         return value.strftime("%d/%m/%Y")
+
+    @app.template_global()
+    def project_image_src(image_url):
+        if not image_url:
+            return None
+        if image_url.startswith(("http://", "https://", "/")):
+            return image_url
+        return url_for("static", filename=image_url)
 
     return app
 
