@@ -4,8 +4,9 @@ from functools import wraps
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db
-from .models import User, Project, Invoice, Payment
+from .models import User, Project, Invoice, Payment, RailwayUsageSnapshot
 from .services.mercadopago import create_payment_preference, fetch_payment
+from .sync import sync_project_from_railway, sync_all_projects
 
 bp = Blueprint("main", __name__)
 
@@ -95,7 +96,8 @@ def project_detail(project_id):
     if not current_user.is_admin and project.client_id != current_user.id:
         abort(403)
     invoices = Invoice.query.filter_by(project_id=project.id).order_by(Invoice.created_at.desc()).all()
-    return render_template("client/project_detail.html", project=project, invoices=invoices)
+    snapshots = RailwayUsageSnapshot.query.filter_by(project_id=project.id).order_by(RailwayUsageSnapshot.created_at.desc()).limit(8).all()
+    return render_template("client/project_detail.html", project=project, invoices=invoices, snapshots=snapshots)
 
 
 @bp.route("/invoices")
@@ -204,6 +206,8 @@ def admin_project_new():
             name=request.form["name"],
             railway_internal_name=request.form.get("railway_internal_name"),
             railway_project_id=request.form.get("railway_project_id"),
+            railway_environment_id=request.form.get("railway_environment_id"),
+            railway_service_id=request.form.get("railway_service_id"),
             public_url=request.form.get("public_url"),
             environment=request.form.get("environment", "produção"),
             status=request.form.get("status", "ativo"),
@@ -233,6 +237,8 @@ def admin_project_edit(project_id):
         project.name = request.form["name"]
         project.railway_internal_name = request.form.get("railway_internal_name")
         project.railway_project_id = request.form.get("railway_project_id")
+        project.railway_environment_id = request.form.get("railway_environment_id")
+        project.railway_service_id = request.form.get("railway_service_id")
         project.public_url = request.form.get("public_url")
         project.environment = request.form.get("environment")
         project.status = request.form.get("status")
@@ -249,6 +255,38 @@ def admin_project_edit(project_id):
         return redirect(url_for("main.project_detail", project_id=project.id))
     return render_template("admin/project_form.html", clients=clients, project=project)
 
+
+
+@bp.route("/admin/projects/<int:project_id>/sync-railway", methods=["POST"])
+@login_required
+@admin_required
+def admin_project_sync_railway(project_id):
+    project = Project.query.get_or_404(project_id)
+    try:
+        sync_project_from_railway(project)
+        if project.sync_status == "parcial":
+            flash("Projeto sincronizado parcialmente. Confira o aviso nos detalhes.", "warning")
+        else:
+            flash("Projeto sincronizado com a Railway.", "success")
+    except Exception as exc:
+        project.sync_status = "erro"
+        project.sync_error = str(exc)
+        project.last_sync_at = datetime.utcnow()
+        db.session.commit()
+        flash(f"Erro ao sincronizar Railway: {exc}", "danger")
+    return redirect(url_for("main.project_detail", project_id=project.id))
+
+
+@bp.route("/admin/sync-railway", methods=["POST"])
+@login_required
+@admin_required
+def admin_sync_all_railway():
+    total, ok, failed = sync_all_projects()
+    if failed:
+        flash(f"Sincronização finalizada: {ok}/{total} projetos atualizados, {failed} com erro.", "warning")
+    else:
+        flash(f"Sincronização finalizada: {ok}/{total} projetos atualizados.", "success")
+    return redirect(url_for("main.admin_dashboard"))
 
 @bp.route("/admin/invoices/new", methods=["GET", "POST"])
 @login_required

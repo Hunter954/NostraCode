@@ -1,5 +1,41 @@
 {% extends 'base.html' %}
 {% block title %}Projeto{% endblock %}
 {% block content %}
-<div class="auth card wide"><h1>{{ 'Editar projeto' if project else 'Novo projeto' }}</h1><form method="post" class="form grid two"><label>Cliente<select name="client_id" required>{% for client in clients %}<option value="{{ client.id }}" {% if project and project.client_id == client.id %}selected{% endif %}>{{ client.name }} - {{ client.email }}</option>{% endfor %}</select></label><label>Nome do projeto<input name="name" value="{{ project.name if project else '' }}" required></label><label>Nome interno Railway<input name="railway_internal_name" value="{{ project.railway_internal_name if project else '' }}"></label><label>ID Railway<input name="railway_project_id" value="{{ project.railway_project_id if project else '' }}"></label><label>URL pública<input name="public_url" value="{{ project.public_url if project else '' }}"></label><label>Ambiente<input name="environment" value="{{ project.environment if project else 'produção' }}"></label><label>Status<select name="status"><option>ativo</option><option>pausado</option><option>suspenso</option><option>online</option></select></label><label>Plano<input name="plan" value="{{ project.plan if project else 'Starter' }}"></label><label>Valor mensal<input name="monthly_value" value="{{ project.monthly_value if project else '0.00' }}"></label><label>Limite de uso<input name="usage_limit" value="{{ project.usage_limit if project else '100.00' }}"></label><label>Custo atual<input name="current_cost" value="{{ project.current_cost if project else '0.00' }}"></label><label>Custo estimado<input name="estimated_cost" value="{{ project.estimated_cost if project else '0.00' }}"></label><label>Taxa de gestão<input name="management_fee" value="{{ project.management_fee if project else '50.00' }}"></label><label class="span2">Observações<textarea name="notes">{{ project.notes if project else '' }}</textarea></label><button class="btn">Salvar projeto</button></form></div>
+<div class="auth card wide">
+  <h1>{{ 'Editar projeto' if project else 'Novo projeto' }}</h1>
+  <form method="post" class="form grid two">
+    <label>Cliente
+      <select name="client_id" required>
+        {% for client in clients %}<option value="{{ client.id }}" {% if project and project.client_id == client.id %}selected{% endif %}>{{ client.name }} - {{ client.email }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Nome do projeto<input name="name" value="{{ project.name if project else '' }}" required></label>
+    <label>Nome interno Railway<input name="railway_internal_name" value="{{ project.railway_internal_name if project else '' }}" placeholder="ex: easygoing-curiosity"></label>
+    <label>ID do projeto Railway<input name="railway_project_id" value="{{ project.railway_project_id if project else '' }}" placeholder="Project ID copiado do Railway"></label>
+    <label>ID do ambiente Railway<input name="railway_environment_id" value="{{ project.railway_environment_id if project else '' }}" placeholder="opcional: Production/Staging"></label>
+    <label>ID do serviço Railway<input name="railway_service_id" value="{{ project.railway_service_id if project else '' }}" placeholder="opcional: serviço principal"></label>
+    <label>URL pública<input name="public_url" value="{{ project.public_url if project else '' }}"></label>
+    <label>Ambiente<input name="environment" value="{{ project.environment if project else 'produção' }}"></label>
+    <label>Status
+      <select name="status">
+        {% for status in ['ativo','pausado','suspenso','online','building','deploying','failed','crashed','sleeping'] %}
+          <option value="{{ status }}" {% if project and project.status == status %}selected{% endif %}>{{ status }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Plano<input name="plan" value="{{ project.plan if project else 'Starter' }}"></label>
+    <label>Valor mensal<input name="monthly_value" value="{{ project.monthly_value if project else '0.00' }}"></label>
+    <label>Limite de uso<input name="usage_limit" value="{{ project.usage_limit if project else '100.00' }}"></label>
+    <label>Custo atual<input name="current_cost" value="{{ project.current_cost if project else '0.00' }}"></label>
+    <label>Custo estimado<input name="estimated_cost" value="{{ project.estimated_cost if project else '0.00' }}"></label>
+    <label>Taxa de gestão<input name="management_fee" value="{{ project.management_fee if project else '50.00' }}"></label>
+    <label class="span2">Observações<textarea name="notes">{{ project.notes if project else '' }}</textarea></label>
+    <div class="span2 actions">
+      <button class="btn">Salvar projeto</button>
+      {% if project and project.railway_project_id %}
+        <a class="btn ghost" href="{{ url_for('main.project_detail', project_id=project.id) }}">Ver detalhes</a>
+      {% endif %}
+    </div>
+  </form>
+</div>
 {% endblock %}

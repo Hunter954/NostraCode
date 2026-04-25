@@ -7,6 +7,7 @@ MVP em Python Flask para gerenciar clientes, projetos hospedados no Railway, cus
 - Cadastro e login de clientes
 - Painel do cliente com projetos, custos, faturas e histórico de pagamentos
 - Painel admin com clientes, projetos, custos, faturas e pagamentos
+- Sincronização com Railway via API pública GraphQL para projetos, serviços, deploy e uso/custos quando disponíveis
 - Webhook do Mercado Pago para atualizar pagamento automaticamente
 - Visual escuro inspirado no estilo Framer: cards, bordas suaves, gráficos e destaques neon
 - Preparado para deploy no Railway com PostgreSQL
@@ -39,11 +40,36 @@ O usuário admin inicial é criado via variáveis `ADMIN_EMAIL` e `ADMIN_PASSWOR
    - `ADMIN_PASSWORD`
    - `PUBLIC_BASE_URL`, ex: `https://seu-app.up.railway.app`
    - `MERCADO_PAGO_ACCESS_TOKEN`, se for ativar pagamento real
+   - `RAILWAY_API_TOKEN`, para sincronizar projetos automaticamente
+   - `RAILWAY_TOKEN_TYPE`, use `account`/`workspace` ou `project` se for Project Token
 5. Rode uma vez o comando de inicialização no Railway shell:
 
 ```bash
 flask --app wsgi init-db
 ```
+
+## Sincronização com Railway
+
+O sistema agora possui integração com a API pública GraphQL da Railway. Configure no `.env`:
+
+```env
+RAILWAY_API_TOKEN=seu_token_da_railway
+RAILWAY_TOKEN_TYPE=account
+```
+
+No admin, preencha o `ID do projeto Railway`. Os campos `ID do ambiente Railway` e `ID do serviço Railway` são opcionais; se ficarem vazios, o sistema tenta escolher o ambiente de produção e o primeiro serviço encontrado.
+
+Você pode sincronizar de três formas:
+
+1. Botão `Sincronizar Railway` dentro de um projeto.
+2. Botão `Sincronizar Railway` no painel admin para todos os projetos com ID Railway.
+3. Comando CLI, ideal para cron/job separado:
+
+```bash
+flask --app wsgi sync-railway
+```
+
+A sincronização salva snapshots em `railway_usage_snapshots` e espelha serviços em `railway_services`. Caso a parte de custos/usage não esteja disponível para seu token ou schema atual, o sync fica como `parcial` e mantém os valores manuais atuais.
 
 ## Mercado Pago
 

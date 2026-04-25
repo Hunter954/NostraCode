@@ -42,6 +42,8 @@ class Project(db.Model):
     name = db.Column(db.String(160), nullable=False)
     railway_internal_name = db.Column(db.String(160))
     railway_project_id = db.Column(db.String(160))
+    railway_environment_id = db.Column(db.String(160))
+    railway_service_id = db.Column(db.String(160))
     public_url = db.Column(db.String(255))
     environment = db.Column(db.String(60), default="produção")
     status = db.Column(db.String(60), default="ativo")
@@ -52,14 +54,31 @@ class Project(db.Model):
     estimated_cost = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
     management_fee = db.Column(db.Numeric(10, 2), default=Decimal("50.00"))
     last_cost_update = db.Column(db.DateTime, default=datetime.utcnow)
+    last_sync_at = db.Column(db.DateTime)
+    sync_status = db.Column(db.String(40), default="manual")
+    sync_error = db.Column(db.Text)
+    latest_deployment_status = db.Column(db.String(80))
+    previous_month_cost = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     invoices = db.relationship("Invoice", backref="project", lazy=True)
+    railway_services = db.relationship("RailwayService", backref="project", lazy=True, cascade="all, delete-orphan")
+    usage_snapshots = db.relationship("RailwayUsageSnapshot", backref="project", lazy=True, cascade="all, delete-orphan")
 
     @property
     def total_forecast(self):
         return (self.estimated_cost or 0) + (self.management_fee or 0)
+
+    @property
+    def usage_percent(self):
+        try:
+            if not self.usage_limit:
+                return 0
+            percent = (Decimal(self.current_cost or 0) / Decimal(self.usage_limit or 1)) * Decimal("100")
+            return max(0, min(100, int(percent)))
+        except Exception:
+            return 0
 
 
 class Invoice(db.Model):
@@ -96,3 +115,31 @@ class Payment(db.Model):
     method = db.Column(db.String(80))
     transaction_code = db.Column(db.String(180))
     receipt_url = db.Column(db.String(500))
+
+
+class RailwayService(db.Model):
+    __tablename__ = "railway_services"
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey("projects.id"), nullable=False, index=True)
+    railway_service_id = db.Column(db.String(160), nullable=False, index=True)
+    name = db.Column(db.String(180))
+    environment_id = db.Column(db.String(160))
+    environment_name = db.Column(db.String(100))
+    latest_deployment_status = db.Column(db.String(80))
+    public_url = db.Column(db.String(500))
+    last_sync_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class RailwayUsageSnapshot(db.Model):
+    __tablename__ = "railway_usage_snapshots"
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey("projects.id"), nullable=False, index=True)
+    current_cost = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
+    estimated_cost = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
+    currency = db.Column(db.String(12), default="BRL")
+    usage_period_start = db.Column(db.DateTime)
+    usage_period_end = db.Column(db.DateTime)
+    raw_payload = db.Column(db.JSON)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)

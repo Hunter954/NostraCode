@@ -2,9 +2,10 @@ import os
 from datetime import date
 from decimal import Decimal
 from flask import Flask
+from datetime import datetime
 from dotenv import load_dotenv
 from .extensions import db, login_manager
-from .models import User, Project, Invoice
+from .models import User, Project, Invoice, RailwayService, RailwayUsageSnapshot
 
 
 def create_app():
@@ -26,8 +27,17 @@ def create_app():
     @app.cli.command("init-db")
     def init_db_command():
         db.create_all()
+        ensure_schema_updates()
         seed_admin_and_demo()
         print("Banco inicializado com sucesso.")
+
+    @app.cli.command("sync-railway")
+    def sync_railway_command():
+        db.create_all()
+        ensure_schema_updates()
+        from .sync import sync_all_projects
+        total, ok, failed = sync_all_projects()
+        print(f"Sincronização Railway finalizada: {ok}/{total} projetos atualizados, {failed} com erro.")
 
     @app.template_filter("brl")
     def brl(value):
@@ -113,3 +123,32 @@ def seed_admin_and_demo():
         db.session.add(invoice)
 
     db.session.commit()
+
+
+def ensure_schema_updates():
+    """Small, safe schema updater for the MVP.
+
+    db.create_all() creates new tables, but does not add columns to existing
+    tables. These ALTERs keep an existing Railway/Postgres deploy from breaking
+    after adding the Railway sync fields.
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(db.engine)
+    if "projects" not in inspector.get_table_names():
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("projects")}
+    columns = {
+        "railway_environment_id": "VARCHAR(160)",
+        "railway_service_id": "VARCHAR(160)",
+        "last_sync_at": "TIMESTAMP",
+        "sync_status": "VARCHAR(40)",
+        "sync_error": "TEXT",
+        "latest_deployment_status": "VARCHAR(80)",
+        "previous_month_cost": "NUMERIC(10, 2) DEFAULT 0",
+    }
+    with db.engine.begin() as conn:
+        for name, definition in columns.items():
+            if name not in existing:
+                conn.execute(text(f"ALTER TABLE projects ADD COLUMN {name} {definition}"))
