@@ -13,10 +13,10 @@ body{background:radial-gradient(circle at 18% 0%,rgba(80,32,212,.30) 0,rgba(5,5,
 @media(max-width:900px){.admin-project-item .pill{justify-self:start}.actions .btn,.actions button.btn{width:auto}}
 
 /* Carrossel de projetos recentes */
-.projects-carousel{position:relative;width:100%;margin-top:24px;overflow-x:auto;overflow-y:hidden;cursor:grab;user-select:none;-webkit-overflow-scrolling:touch;scrollbar-width:none;touch-action:pan-y;mask-image:linear-gradient(90deg,transparent 0,#000 8%,#000 92%,transparent 100%);-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 8%,#000 92%,transparent 100%)}
+.projects-carousel{position:relative;width:100%;margin-top:24px;overflow:hidden;cursor:grab;user-select:none;touch-action:pan-y;mask-image:linear-gradient(90deg,transparent 0,#000 8%,#000 92%,transparent 100%);-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 8%,#000 92%,transparent 100%)}
 .projects-carousel::-webkit-scrollbar{display:none}
-.projects-carousel.dragging{cursor:grabbing;scroll-behavior:auto}
-.projects-carousel-track{display:flex;align-items:stretch;gap:20px;width:max-content;padding:8px 0 16px;will-change:transform}
+.projects-carousel.dragging{cursor:grabbing}.projects-carousel.is-holding{cursor:grab}
+.projects-carousel-track{display:flex;align-items:stretch;gap:20px;width:max-content;padding:8px 0 16px;will-change:transform;transform:translate3d(0,0,0)}
 .projects-carousel .project-showcase-card{flex:0 0 clamp(286px,32vw,420px);max-width:420px;min-height:100%}
 .projects-carousel .project-showcase-card img,.projects-carousel .project-placeholder{pointer-events:none}
 .projects-carousel .badge-row span{white-space:nowrap}
