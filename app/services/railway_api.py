@@ -88,17 +88,21 @@ def _dig(value: Any, *keys: str) -> Any:
     return current
 
 
-def _to_decimal(value: Any) -> Optional[Decimal]:
+def _to_decimal(value: Any, quantize: Optional[Decimal] = Decimal("0.01")) -> Optional[Decimal]:
     if value is None or value == "":
         return None
     try:
         amount = Decimal(str(value))
     except (InvalidOperation, ValueError):
         return None
-    if amount > Decimal("10000"):
-        amount = amount / Decimal("100")
-    return amount.quantize(Decimal("0.01"))
+    return amount.quantize(quantize) if quantize else amount
 
+
+def _env_decimal(name: str) -> Optional[Decimal]:
+    value = os.getenv(name)
+    if value in (None, ""):
+        return None
+    return _to_decimal(str(value).replace(",", "."), quantize=None)
 
 def _parse_dt(value: Optional[str]) -> Optional[datetime]:
     if not value:
@@ -244,20 +248,50 @@ def _billing_period() -> Tuple[str, str]:
     return start.isoformat() + "Z", end.isoformat() + "Z"
 
 
-def _sum_usage_values(items: Any, value_key: str) -> Optional[Decimal]:
+RAILWAY_DEFAULT_USAGE_RATES = {
+    # Railway returns accumulated usage units, not money.
+    # CPU/RAM/Volume are minute-based; egress is per GB.
+    "CPU_USAGE": Decimal("0.000463"),
+    "MEMORY_USAGE_GB": Decimal("0.000231"),
+    "NETWORK_TX_GB": Decimal("0.05"),
+    "DISK_USAGE_GB": Decimal("0.00000347"),
+    "EPHEMERAL_DISK_USAGE_GB": Decimal("0.00000347"),
+}
+
+
+def _rate_for_measurement(measurement: str) -> Decimal:
+    env_name = f"RAILWAY_RATE_{measurement}"
+    return _env_decimal(env_name) or RAILWAY_DEFAULT_USAGE_RATES.get(measurement, Decimal("0.00"))
+
+
+def _sum_usage_cost(items: Any, value_key: str) -> Optional[Decimal]:
     rows = items if isinstance(items, list) else []
     total = Decimal("0.00")
     found = False
     for row in rows:
         if not isinstance(row, dict):
             continue
-        amount = _to_decimal(row.get(value_key))
-        if amount is None:
+        measurement = row.get("measurement")
+        usage = _to_decimal(row.get(value_key), quantize=None)
+        if not measurement or usage is None:
             continue
-        total += amount
+        total += usage * _rate_for_measurement(str(measurement))
         found = True
     return total.quantize(Decimal("0.01")) if found else None
 
+
+def _apply_optional_brl_conversion(value: Optional[Decimal]) -> Optional[Decimal]:
+    """Railway usage prices are USD. Convert only when a rate is configured.
+
+    Set RAILWAY_USD_TO_BRL_RATE or USD_BRL_RATE in the environment to bill in
+    BRL. If neither is set, the numeric value remains the Railway USD cost.
+    """
+    if value is None:
+        return None
+    rate = _env_decimal("RAILWAY_USD_TO_BRL_RATE") or _env_decimal("USD_BRL_RATE")
+    if not rate:
+        return value
+    return (value * rate).quantize(Decimal("0.01"))
 
 def get_usage(project_id: str) -> Tuple[Optional[Decimal], Optional[Decimal], Dict[str, Any]]:
     """Fetch current and estimated Railway project cost.
@@ -318,8 +352,15 @@ def get_usage(project_id: str) -> Tuple[Optional[Decimal], Optional[Decimal], Di
     except Exception as exc:
         errors.append(str(exc))
 
-    current = _sum_usage_values(raw.get("usage"), "value")
-    estimated = _sum_usage_values(raw.get("estimatedUsage"), "estimatedValue")
+    current_usd = _sum_usage_cost(raw.get("usage"), "value")
+    estimated_usd = _sum_usage_cost(raw.get("estimatedUsage"), "estimatedValue")
+    raw["currentCostUsd"] = str(current_usd) if current_usd is not None else None
+    raw["estimatedCostUsd"] = str(estimated_usd) if estimated_usd is not None else None
+
+    rate = _env_decimal("RAILWAY_USD_TO_BRL_RATE") or _env_decimal("USD_BRL_RATE")
+    current = _apply_optional_brl_conversion(current_usd)
+    estimated = _apply_optional_brl_conversion(estimated_usd)
+    raw["currency"] = "BRL" if rate else "USD"
 
     if current is None and estimated is None and errors:
         raw["usage_error"] = " | ".join(errors[-2:])
