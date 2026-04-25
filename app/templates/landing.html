@@ -54,34 +54,60 @@
 <section class="section-title compact mt-xl">
   <div><span class="eyebrow">Projetos recentes</span><h1>Cases, stacks e soluções que podem inspirar o seu sistema.</h1></div>
 </section>
-<section class="projects-showcase grid three gap">
-  {% for project in recent_projects %}
-  <article class="project-showcase-card card">
-    {% set image_src = project_image_src(project.image_url) %}
-    {% if image_src %}
-      <img src="{{ image_src }}" alt="{{ project.name }}">
+<section class="projects-carousel" data-projects-carousel aria-label="Carrossel de projetos recentes">
+  <div class="projects-carousel-track">
+    {% if recent_projects %}
+      {% for repeat in range(2) %}
+        {% for project in recent_projects %}
+        <article class="project-showcase-card card">
+          {% set image_src = project_image_src(project.image_url) %}
+          {% if image_src %}
+            <img src="{{ image_src }}" alt="{{ project.name }}" draggable="false">
+          {% else %}
+            <div class="project-placeholder">{{ project.name[:1] }}</div>
+          {% endif %}
+          <div class="project-showcase-body">
+            <span class="pill {{ project.status }}">{{ project.status }}</span>
+            <h3>{{ project.name }}</h3>
+            <p>{{ project.description or project.notes or 'Sistema personalizado com integrações, painel de controle e automações para operação digital.' }}</p>
+            <div class="badge-row">
+              {% for stack in project.stack_badges %}<span>{{ stack }}</span>{% endfor %}
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      {% endfor %}
     {% else %}
-      <div class="project-placeholder">{{ project.name[:1] }}</div>
+      {% for repeat in range(2) %}
+      <article class="project-showcase-card card">
+        <div class="project-placeholder">N</div>
+        <div class="project-showcase-body">
+          <span class="pill ativo">modelo</span>
+          <h3>Dashboard Comercial</h3>
+          <p>Painel sob medida com métricas, WhatsApp API, pagamentos e automações para acelerar vendas.</p>
+          <div class="badge-row"><span>Dashboard</span><span>WhatsApp API</span><span>Mercado Pago</span></div>
+        </div>
+      </article>
+      <article class="project-showcase-card card">
+        <div class="project-placeholder">W</div>
+        <div class="project-showcase-body">
+          <span class="pill online">online</span>
+          <h3>Automação WhatsApp</h3>
+          <p>Atendimento automático, captação de leads, CRM e fluxos conectados para acelerar o comercial.</p>
+          <div class="badge-row"><span>WhatsApp API</span><span>CRM</span><span>Automações</span></div>
+        </div>
+      </article>
+      <article class="project-showcase-card card">
+        <div class="project-placeholder">S</div>
+        <div class="project-showcase-body">
+          <span class="pill aguardando-pagamento">saas</span>
+          <h3>Portal do Cliente</h3>
+          <p>Área de clientes com faturas, pagamentos, relatórios, status de projeto e integrações sob medida.</p>
+          <div class="badge-row"><span>SaaS</span><span>Mercado Pago</span><span>Dashboard</span></div>
+        </div>
+      </article>
+      {% endfor %}
     {% endif %}
-    <div class="project-showcase-body">
-      <span class="pill {{ project.status }}">{{ project.status }}</span>
-      <h3>{{ project.name }}</h3>
-      <p>{{ project.description or project.notes or 'Sistema personalizado com integrações, painel de controle e automações para operação digital.' }}</p>
-      <div class="badge-row">
-        {% for stack in project.stack_badges %}<span>{{ stack }}</span>{% endfor %}
-      </div>
-    </div>
-  </article>
-  {% else %}
-  <article class="project-showcase-card card">
-    <div class="project-placeholder">N</div>
-    <div class="project-showcase-body">
-      <span class="pill ativo">modelo</span>
-      <h3>Dashboard Comercial</h3>
-      <p>Painel sob medida com métricas, WhatsApp API, pagamentos e automações para acelerar vendas.</p>
-      <div class="badge-row"><span>Dashboard</span><span>WhatsApp API</span><span>Mercado Pago</span></div>
-    </div>
-  </article>
-  {% endfor %}
+  </div>
 </section>
 {% endblock %}

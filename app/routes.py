@@ -53,7 +53,7 @@ def uploaded_project_image(filename):
 def index():
     if current_user.is_authenticated:
         return redirect(url_for("main.admin_dashboard" if current_user.is_admin else "main.client_dashboard"))
-    recent_projects = Project.query.order_by(Project.created_at.desc()).limit(6).all()
+    recent_projects = Project.query.order_by(Project.created_at.desc()).limit(12).all()
     return render_template("landing.html", recent_projects=recent_projects)
 
 
