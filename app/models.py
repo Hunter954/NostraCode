@@ -52,7 +52,7 @@ class Project(db.Model):
     usage_limit = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
     current_cost = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
     estimated_cost = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
-    management_fee = db.Column(db.Numeric(10, 2), default=Decimal("50.00"))
+    management_fee = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
     last_cost_update = db.Column(db.DateTime, default=datetime.utcnow)
     last_sync_at = db.Column(db.DateTime)
     sync_status = db.Column(db.String(40), default="manual")
@@ -68,17 +68,13 @@ class Project(db.Model):
 
     @property
     def total_forecast(self):
-        return (self.estimated_cost or 0) + (self.management_fee or 0)
+        # A cobrança exibida ao cliente agora vem somente do Railway.
+        return self.estimated_cost or Decimal("0.00")
 
     @property
     def usage_percent(self):
-        try:
-            if not self.usage_limit:
-                return 0
-            percent = (Decimal(self.current_cost or 0) / Decimal(self.usage_limit or 1)) * Decimal("100")
-            return max(0, min(100, int(percent)))
-        except Exception:
-            return 0
+        # Sem limite manual de uso; mantido apenas para compatibilidade com telas antigas.
+        return 0
 
 
 class Invoice(db.Model):

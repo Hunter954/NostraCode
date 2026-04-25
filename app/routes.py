@@ -6,7 +6,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db
 from .models import User, Project, Invoice, Payment, RailwayUsageSnapshot
 from .services.mercadopago import create_payment_preference, fetch_payment
-from .sync import sync_project_from_railway, sync_all_projects
+from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects
 
 bp = Blueprint("main", __name__)
 
@@ -204,25 +204,31 @@ def admin_project_new():
         project = Project(
             client_id=int(request.form["client_id"]),
             name=request.form["name"],
-            railway_internal_name=request.form.get("railway_internal_name"),
-            railway_project_id=request.form.get("railway_project_id"),
-            railway_environment_id=request.form.get("railway_environment_id"),
-            railway_service_id=request.form.get("railway_service_id"),
-            public_url=request.form.get("public_url"),
-            environment=request.form.get("environment", "produção"),
+            railway_project_id=(request.form.get("railway_project_id") or "").strip(),
             status=request.form.get("status", "ativo"),
             plan=request.form.get("plan"),
-            monthly_value=money(request.form.get("monthly_value")),
-            usage_limit=money(request.form.get("usage_limit")),
-            current_cost=money(request.form.get("current_cost")),
-            estimated_cost=money(request.form.get("estimated_cost")),
-            management_fee=money(request.form.get("management_fee")),
+            monthly_value=Decimal("0.00"),
+            usage_limit=Decimal("0.00"),
+            current_cost=Decimal("0.00"),
+            estimated_cost=Decimal("0.00"),
+            management_fee=Decimal("0.00"),
             notes=request.form.get("notes"),
         )
         db.session.add(project)
         db.session.commit()
-        flash("Projeto criado.", "success")
-        return redirect(url_for("main.admin_dashboard"))
+        if project.railway_project_id:
+            try:
+                sync_project_from_railway(project)
+                flash("Projeto criado e sincronizado com a Railway.", "success")
+            except Exception as exc:
+                project.sync_status = "erro"
+                project.sync_error = str(exc)
+                project.last_sync_at = datetime.utcnow()
+                db.session.commit()
+                flash(f"Projeto criado, mas a sincronização Railway falhou: {exc}", "warning")
+        else:
+            flash("Projeto criado.", "success")
+        return redirect(url_for("main.project_detail", project_id=project.id))
     return render_template("admin/project_form.html", clients=clients, project=None)
 
 
@@ -233,25 +239,42 @@ def admin_project_edit(project_id):
     project = Project.query.get_or_404(project_id)
     clients = User.query.filter_by(role="client").all()
     if request.method == "POST":
+        old_railway_project_id = project.railway_project_id
+        new_railway_project_id = (request.form.get("railway_project_id") or "").strip()
+
         project.client_id = int(request.form["client_id"])
         project.name = request.form["name"]
-        project.railway_internal_name = request.form.get("railway_internal_name")
-        project.railway_project_id = request.form.get("railway_project_id")
-        project.railway_environment_id = request.form.get("railway_environment_id")
-        project.railway_service_id = request.form.get("railway_service_id")
-        project.public_url = request.form.get("public_url")
-        project.environment = request.form.get("environment")
+        project.railway_project_id = new_railway_project_id
         project.status = request.form.get("status")
         project.plan = request.form.get("plan")
-        project.monthly_value = money(request.form.get("monthly_value"))
-        project.usage_limit = money(request.form.get("usage_limit"))
-        project.current_cost = money(request.form.get("current_cost"))
-        project.estimated_cost = money(request.form.get("estimated_cost"))
-        project.management_fee = money(request.form.get("management_fee"))
         project.notes = request.form.get("notes")
-        project.last_cost_update = datetime.utcnow()
+
+        if old_railway_project_id != new_railway_project_id:
+            clear_unpaid_project_invoices(project)
+            project.railway_internal_name = None
+            project.railway_environment_id = None
+            project.railway_service_id = None
+            project.public_url = None
+            project.current_cost = Decimal("0.00")
+            project.estimated_cost = Decimal("0.00")
+            project.monthly_value = Decimal("0.00")
+            project.management_fee = Decimal("0.00")
+            project.last_cost_update = datetime.utcnow()
+
         db.session.commit()
-        flash("Projeto atualizado.", "success")
+
+        if project.railway_project_id:
+            try:
+                sync_project_from_railway(project)
+                flash("Projeto atualizado e sincronizado com a Railway.", "success")
+            except Exception as exc:
+                project.sync_status = "erro"
+                project.sync_error = str(exc)
+                project.last_sync_at = datetime.utcnow()
+                db.session.commit()
+                flash(f"Projeto atualizado, mas a sincronização Railway falhou: {exc}", "warning")
+        else:
+            flash("Projeto atualizado.", "success")
         return redirect(url_for("main.project_detail", project_id=project.id))
     return render_template("admin/project_form.html", clients=clients, project=project)
 

@@ -13,8 +13,7 @@
   <a class="card project-card" href="{{ url_for('main.project_detail', project_id=project.id) }}">
     <div class="card-head"><span>{{ project.name }}</span><b>{{ project.status }}</b></div>
     <p>{{ project.railway_internal_name }} · {{ project.environment }}</p>
-    <div class="metrics three"><div><small>Custo</small><strong>{{ project.current_cost|brl }}</strong></div><div><small>Estimativa</small><strong>{{ project.estimated_cost|brl }}</strong></div><div><small>Total</small><strong>{{ project.total_forecast|brl }}</strong></div></div>
-    <div class="progress"><span style="width: {{ ((project.current_cost or 0) / (project.usage_limit or 100) * 100)|round(0, 'floor') }}%"></span></div>
+    <div class="metrics three"><div><small>Custo</small><strong>{{ project.current_cost|brl }}</strong></div><div><small>Estimativa</small><strong>{{ project.estimated_cost|brl }}</strong></div><div><small>Status</small><strong>{{ project.sync_status or 'manual' }}</strong></div></div>
   </a>
   {% else %}<div class="card"><h3>Nenhum projeto vinculado ainda.</h3><p>Seu administrador pode cadastrar seu projeto no painel admin.</p></div>{% endfor %}
 </div>

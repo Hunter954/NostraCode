@@ -22,18 +22,14 @@
 <div class="grid three gap">
   <div class="card metric"><small>Status</small><strong>{{ project.status|title }}</strong><span>{{ project.environment }}</span></div>
   <div class="card metric"><small>Custo atual</small><strong>{{ project.current_cost|brl }}</strong><span>{% if project.last_cost_update %}Atualizado em {{ project.last_cost_update.strftime('%d/%m às %H:%M') }}{% else %}sem atualização{% endif %}</span></div>
-  <div class="card metric"><small>Total previsto</small><strong>{{ project.total_forecast|brl }}</strong><span>inclui gestão</span></div>
+  <div class="card metric"><small>Custo estimado</small><strong>{{ project.total_forecast|brl }}</strong><span>fim do mês pela Railway</span></div>
 </div>
 
 <div class="grid two gap mt">
   <div class="card">
     <h2>Consumo</h2>
     <div class="line-chart tall"><i style="height:40%"></i><i style="height:48%"></i><i style="height:62%"></i><i style="height:58%"></i><i style="height:70%"></i><i style="height:82%"></i><i style="height:78%"></i><i style="height:92%"></i></div>
-    <p>Estimativa Railway: {{ project.estimated_cost|brl }} · Gestão: {{ project.management_fee|brl }}</p>
-    {% if project.usage_limit and project.current_cost %}
-      <p>Limite combinado: {{ project.usage_limit|brl }}</p>
-      <div class="progress"><span style="width:{{ project.usage_percent }}%"></span></div>
-    {% endif %}
+    <p>Estimativa Railway: {{ project.estimated_cost|brl }}</p>
   </div>
   <div class="card">
     <h2>Detalhes Railway</h2>

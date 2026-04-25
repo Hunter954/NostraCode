@@ -134,6 +134,73 @@ def get_project(project_id: str) -> Dict[str, Any]:
     return graphql(query, {"id": project_id}).get("project") or {}
 
 
+def get_service_domains(project_id: str, environment_id: Optional[str], service_id: Optional[str]) -> Tuple[Optional[str], Dict[str, Any]]:
+    """Best-effort lookup for the public Railway URL.
+
+    Railway's GraphQL shape has changed over time, so this tries a few common
+    domain queries and extracts the first public/custom domain URI it can find.
+    """
+    if not environment_id or not service_id:
+        return None, {}
+
+    attempts = [
+        (
+            """
+            query Domains($projectId: String!, $environmentId: String!, $serviceId: String!) {
+              domains(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId) {
+                serviceDomains { domain targetPort }
+                customDomains { domain targetPort }
+              }
+            }
+            """,
+            {"projectId": project_id, "environmentId": environment_id, "serviceId": service_id},
+        ),
+        (
+            """
+            query ServiceDomains($environmentId: String!, $serviceId: String!) {
+              serviceDomains(environmentId: $environmentId, serviceId: $serviceId) {
+                edges { node { domain } }
+              }
+              customDomains(environmentId: $environmentId, serviceId: $serviceId) {
+                edges { node { domain } }
+              }
+            }
+            """,
+            {"environmentId": environment_id, "serviceId": service_id},
+        ),
+    ]
+
+    errors = []
+    for query, variables in attempts:
+        try:
+            data = graphql(query, variables)
+            domain = _extract_domain(data)
+            if domain:
+                if not domain.startswith(("http://", "https://")):
+                    domain = f"https://{domain}"
+                return domain, data
+            return None, data
+        except Exception as exc:
+            errors.append(str(exc))
+    return None, {"domain_error": " | ".join(errors[-2:])}
+
+
+def _extract_domain(value: Any) -> Optional[str]:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key in {"domain", "url", "uri"} and isinstance(item, str) and item:
+                return item
+            found = _extract_domain(item)
+            if found:
+                return found
+    elif isinstance(value, list):
+        for item in value:
+            found = _extract_domain(item)
+            if found:
+                return found
+    return None
+
+
 def get_latest_deployment(project_id: str, environment_id: Optional[str], service_id: Optional[str]) -> Optional[Dict[str, Any]]:
     if not environment_id or not service_id:
         return None

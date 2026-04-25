@@ -1,13 +1,14 @@
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 from typing import Tuple
 
 from .extensions import db
-from .models import Project, RailwayService, RailwayUsageSnapshot
+from .models import Invoice, Project, RailwayService, RailwayUsageSnapshot
 from .services.railway_api import (
     RailwayAPIError,
     get_latest_deployment,
     get_project,
+    get_service_domains,
     get_usage,
     parse_period,
     pick_environment,
@@ -57,11 +58,20 @@ def sync_project_from_railway(project: Project) -> Project:
         elif latest_deployment.get("status"):
             project.status = latest_deployment.get("status").lower()
 
+    domain_url, domain_raw = get_service_domains(
+        project.railway_project_id,
+        project.railway_environment_id,
+        project.railway_service_id,
+    )
+    if domain_url:
+        project.public_url = domain_url
+
     current_cost, estimated_cost, usage_raw = get_usage(project.railway_project_id)
     if current_cost is not None:
         project.current_cost = current_cost
     if estimated_cost is not None:
         project.estimated_cost = estimated_cost
+        project.monthly_value = estimated_cost
 
     period_start, period_end = parse_period(usage_raw)
     db.session.add(RailwayUsageSnapshot(
@@ -95,6 +105,11 @@ def sync_project_from_railway(project: Project) -> Project:
     usage_error = usage_raw.get("usage_error") if isinstance(usage_raw, dict) else None
     if usage_error:
         warning = f"{warning or ''} Uso/custos não sincronizados automaticamente: {usage_error}".strip()
+    domain_error = domain_raw.get("domain_error") if isinstance(domain_raw, dict) else None
+    if domain_error:
+        warning = f"{warning or ''} URL pública não sincronizada automaticamente: {domain_error}".strip()
+
+    refresh_project_invoice(project, period_start, period_end)
 
     project.last_sync_at = now
     project.last_cost_update = now
@@ -119,3 +134,68 @@ def sync_all_projects() -> Tuple[int, int, int]:
             db.session.commit()
             failed += 1
     return len(projects), ok, failed
+
+def _current_period_label(today: date | None = None) -> str:
+    today = today or date.today()
+    months = [
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+    ]
+    return f"{months[today.month - 1]}/{today.year}"
+
+
+def _next_due_date(today: date | None = None) -> date:
+    today = today or date.today()
+    return today + timedelta(days=7)
+
+
+def _next_invoice_number() -> str:
+    prefix = str(date.today().year)
+    count = Invoice.query.filter(Invoice.number.like(f"{prefix}-%")).count() + 1
+    while True:
+        number = f"{prefix}-{count:04d}"
+        if not Invoice.query.filter_by(number=number).first():
+            return number
+        count += 1
+
+
+def clear_unpaid_project_invoices(project: Project) -> int:
+    """Remove faturas abertas antigas quando o Railway Project ID muda."""
+    removable_statuses = ["pendente", "aguardando pagamento", "atrasado", "cancelado"]
+    invoices = Invoice.query.filter(
+        Invoice.project_id == project.id,
+        Invoice.status.in_(removable_statuses),
+    ).all()
+    for invoice in invoices:
+        db.session.delete(invoice)
+    return len(invoices)
+
+
+def refresh_project_invoice(project: Project, period_start=None, period_end=None) -> Invoice | None:
+    """Create/update the current open invoice from Railway values.
+
+    Paid invoices are preserved as history. Open invoices for the same project are
+    replaced so the table never shows stale totals after a Railway ID/cost update.
+    """
+    clear_unpaid_project_invoices(project)
+
+    amount = project.estimated_cost if project.estimated_cost is not None else project.current_cost
+    amount = Decimal(amount or "0.00").quantize(Decimal("0.01"))
+
+    period_date = period_start.date() if period_start else date.today()
+    invoice = Invoice(
+        number=_next_invoice_number(),
+        client_id=project.client_id,
+        project_id=project.id,
+        period=_current_period_label(period_date),
+        railway_cost=amount,
+        management_fee=Decimal("0.00"),
+        discounts=Decimal("0.00"),
+        fines=Decimal("0.00"),
+        total=amount,
+        status="pendente",
+        due_date=_next_due_date(),
+    )
+    db.session.add(invoice)
+    return invoice
+
