@@ -21,3 +21,9 @@ body{background:radial-gradient(circle at 18% 0%,rgba(80,32,212,.30) 0,rgba(5,5,
 .projects-carousel .project-showcase-card img,.projects-carousel .project-placeholder{pointer-events:none}
 .projects-carousel .badge-row span{white-space:nowrap}
 @media(max-width:900px){.projects-carousel{mask-image:linear-gradient(90deg,transparent 0,#000 5%,#000 95%,transparent 100%);-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 5%,#000 95%,transparent 100%)}.projects-carousel-track{gap:14px}.projects-carousel .project-showcase-card{flex-basis:min(82vw,340px)}}
+
+/* Melhorias no fluxo de login/cadastro */
+.auth-switch{margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.10);display:flex;align-items:center;justify-content:center;gap:8px;color:var(--muted);font-size:14px;text-align:center}
+.auth-switch a{color:#fff;font-weight:900;border-bottom:1px solid rgba(80,32,212,.75);padding-bottom:2px}
+.auth-switch a:hover{color:#ded7ff;border-color:#ded7ff}
+@media(max-width:520px){.auth-switch{flex-direction:column;gap:6px}.auth{margin:24px auto}}

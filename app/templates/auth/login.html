@@ -3,12 +3,15 @@
 {% block content %}
 <div class="auth card">
   <h1>Entrar</h1>
-  <p>Acesse seu painel.</p>
+  <p>Acesse seu painel para acompanhar projetos, cobranças e atualizações.</p>
   <form method="post" class="form">
     <label>E-mail<input type="email" name="email" required></label>
     <label>Senha<input type="password" name="password" required></label>
-    <button class="btn" type="submit">Entrar</button>
+    <button class="btn" type="submit"><i class="bi bi-box-arrow-in-right"></i>Entrar</button>
   </form>
-  <small>Demo admin: admin@example.com / admin123<br>Demo cliente: cliente@demo.com / cliente123</small>
+  <div class="auth-switch">
+    <span>Não tem cadastro?</span>
+    <a href="{{ url_for('main.register') }}">Cadastre-se</a>
+  </div>
 </div>
 {% endblock %}

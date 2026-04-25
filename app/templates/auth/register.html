@@ -11,7 +11,11 @@
     <label>WhatsApp<input name="whatsapp"></label>
     <label>CPF/CNPJ<input name="document"></label>
     <label class="check"><input type="checkbox" name="accepted_terms" required> Aceito os termos de uso</label>
-    <button class="btn" type="submit">Criar conta</button>
+    <button class="btn" type="submit"><i class="bi bi-person-plus"></i>Criar conta</button>
   </form>
+  <div class="auth-switch">
+    <span>Já tem cadastro?</span>
+    <a href="{{ url_for('main.login') }}">Entrar agora</a>
+  </div>
 </div>
 {% endblock %}
