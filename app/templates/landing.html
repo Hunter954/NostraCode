@@ -55,9 +55,9 @@
   <div><span class="eyebrow">Projetos recentes</span><h1>Cases, stacks e soluções que podem inspirar o seu sistema.</h1></div>
 </section>
 <section class="projects-carousel" data-projects-carousel aria-label="Carrossel de projetos recentes">
-  <div class="projects-carousel-track">
+  <div class="projects-carousel-track" data-loop-copies="8">
     {% if recent_projects %}
-      {% for repeat in range(2) %}
+      {% for repeat in range(8) %}
         {% for project in recent_projects %}
         <article class="project-showcase-card card">
           {% set image_src = project_image_src(project.image_url) %}
@@ -78,7 +78,7 @@
         {% endfor %}
       {% endfor %}
     {% else %}
-      {% for repeat in range(2) %}
+      {% for repeat in range(8) %}
       <article class="project-showcase-card card">
         <div class="project-placeholder">N</div>
         <div class="project-showcase-body">
