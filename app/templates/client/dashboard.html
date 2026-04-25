@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="section-title"><div><span class="eyebrow">Painel do Cliente</span><h1>Olá, {{ current_user.name }}</h1></div>{% if next_invoice %}<form method="post" action="{{ url_for('main.pay_invoice', invoice_id=next_invoice.id) }}"><button class="btn">Pagar agora</button></form>{% endif %}</div>
+<div class="grid four gap">
+  <div class="card metric"><small>Projetos</small><strong>{{ projects|length }}</strong><span>Status geral</span></div>
+  <div class="card metric"><small>Custo atual</small><strong>{{ total_current|brl }}</strong><span>mês vigente</span></div>
+  <div class="card metric"><small>Estimativa</small><strong>{{ total_estimated|brl }}</strong><span>fim do mês</span></div>
+  <div class="card metric"><small>Pagamento</small><strong>{{ next_invoice.status|title if next_invoice else 'Em dia' }}</strong><span>{{ next_invoice.due_date|datebr if next_invoice else 'sem pendências' }}</span></div>
+</div>
+<div class="grid two gap mt">
+  {% for project in projects %}
+  <a class="card project-card" href="{{ url_for('main.project_detail', project_id=project.id) }}">
+    <div class="card-head"><span>{{ project.name }}</span><b>{{ project.status }}</b></div>
+    <p>{{ project.railway_internal_name }} · {{ project.environment }}</p>
+    <div class="metrics three"><div><small>Custo</small><strong>{{ project.current_cost|brl }}</strong></div><div><small>Estimativa</small><strong>{{ project.estimated_cost|brl }}</strong></div><div><small>Total</small><strong>{{ project.total_forecast|brl }}</strong></div></div>
+    <div class="progress"><span style="width: {{ ((project.current_cost or 0) / (project.usage_limit or 100) * 100)|round(0, 'floor') }}%"></span></div>
+  </a>
+  {% else %}<div class="card"><h3>Nenhum projeto vinculado ainda.</h3><p>Seu administrador pode cadastrar seu projeto no painel admin.</p></div>{% endfor %}
+</div>
+<div class="card mt"><h2>Últimas faturas</h2>{% include 'partials/invoice_table.html' %}</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}{{ project.name }}{% endblock %}
+{% block content %}
+<div class="section-title"><div><span class="eyebrow">Uso do Projeto</span><h1>{{ project.name }}</h1></div>{% if current_user.is_admin %}<a class="btn ghost" href="{{ url_for('main.admin_project_edit', project_id=project.id) }}">Editar</a>{% endif %}</div>
+<div class="grid three gap">
+  <div class="card metric"><small>Status</small><strong>{{ project.status|title }}</strong><span>{{ project.environment }}</span></div>
+  <div class="card metric"><small>Custo atual</small><strong>{{ project.current_cost|brl }}</strong><span>Atualizado em {{ project.last_cost_update.strftime('%d/%m às %H:%M') }}</span></div>
+  <div class="card metric"><small>Total previsto</small><strong>{{ project.total_forecast|brl }}</strong><span>inclui gestão</span></div>
+</div>
+<div class="grid two gap mt">
+  <div class="card"><h2>Consumo</h2><div class="line-chart tall"><i style="height:40%"></i><i style="height:48%"></i><i style="height:62%"></i><i style="height:58%"></i><i style="height:70%"></i><i style="height:82%"></i><i style="height:78%"></i><i style="height:92%"></i></div><p>Comparativo: mês passado R$ 74,00 · atual {{ project.current_cost|brl }}</p></div>
+  <div class="card"><h2>Detalhes</h2><div class="kv"><span>Railway interno</span><b>{{ project.railway_internal_name or '-' }}</b><span>ID Railway</span><b>{{ project.railway_project_id or '-' }}</b><span>URL</span><b>{% if project.public_url %}<a href="{{ project.public_url }}">{{ project.public_url }}</a>{% else %}-{% endif %}</b><span>Plano</span><b>{{ project.plan }}</b><span>Limite combinado</span><b>{{ project.usage_limit|brl }}</b><span>Observações</span><b>{{ project.notes or '-' }}</b></div></div>
+</div>
+<div class="card mt"><h2>Faturas do projeto</h2>{% include 'partials/invoice_table.html' %}</div>
+{% endblock %}

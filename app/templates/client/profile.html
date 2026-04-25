@@ -1,0 +1,5 @@
+{% extends 'base.html' %}
+{% block title %}Perfil{% endblock %}
+{% block content %}
+<div class="auth card wide"><h1>Perfil do cliente</h1><form method="post" class="form grid two"><label>Nome<input name="name" value="{{ current_user.name }}" required></label><label>Empresa<input name="company" value="{{ current_user.company or '' }}"></label><label>WhatsApp<input name="whatsapp" value="{{ current_user.whatsapp or '' }}"></label><label>CPF/CNPJ<input name="document" value="{{ current_user.document or '' }}"></label><label>Nova senha<input type="password" name="password"></label><button class="btn">Salvar</button></form></div>
+{% endblock %}

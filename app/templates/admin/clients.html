@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block title %}Clientes{% endblock %}
+{% block content %}
+<div class="section-title"><div><span class="eyebrow">Admin</span><h1>Clientes</h1></div></div>
+<div class="card"><div class="table-wrap"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Empresa</th><th>Status</th><th>Projetos</th><th></th></tr></thead><tbody>{% for client in clients %}<tr><td>{{ client.name }}</td><td>{{ client.email }}</td><td>{{ client.company or '-' }}</td><td><span class="pill {{ 'ativo' if client.is_active_client else 'suspenso' }}">{{ 'ativo' if client.is_active_client else 'bloqueado' }}</span></td><td>{{ client.projects|length }}</td><td><form method="post" action="{{ url_for('main.toggle_client', user_id=client.id) }}"><button class="btn tiny">{{ 'Bloquear' if client.is_active_client else 'Ativar' }}</button></form></td></tr>{% endfor %}</tbody></table></div></div>
+{% endblock %}

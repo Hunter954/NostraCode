@@ -1,0 +1,6 @@
+{% extends 'base.html' %}
+{% block title %}Faturas{% endblock %}
+{% block content %}
+<div class="section-title"><div><span class="eyebrow">Financeiro</span><h1>Faturas</h1></div>{% if current_user.is_admin %}<a class="btn" href="{{ url_for('main.admin_invoice_new') }}">Nova fatura</a>{% endif %}</div>
+<div class="card">{% include 'partials/invoice_table.html' %}</div>
+{% endblock %}

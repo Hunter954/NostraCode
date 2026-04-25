@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="auth card">
+  <h1>Entrar</h1>
+  <p>Acesse seu painel.</p>
+  <form method="post" class="form">
+    <label>E-mail<input type="email" name="email" required></label>
+    <label>Senha<input type="password" name="password" required></label>
+    <button class="btn" type="submit">Entrar</button>
+  </form>
+  <small>Demo admin: admin@example.com / admin123<br>Demo cliente: cliente@demo.com / cliente123</small>
+</div>
+{% endblock %}

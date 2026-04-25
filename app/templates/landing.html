@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}MVP Railway Manager{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <span class="eyebrow">Painel SaaS para Railway + Mercado Pago</span>
+    <h1>Controle custos, faturas e clientes com um painel profissional.</h1>
+    <p>Um MVP em Flask para cobrar clientes que usam projetos hospedados no Railway, com visual escuro no estilo Framer.</p>
+    <div class="actions">
+      <a class="btn" href="{{ url_for('main.register') }}">Criar conta</a>
+      <a class="btn ghost" href="{{ url_for('main.login') }}">Entrar</a>
+    </div>
+  </div>
+  <div class="hero-card glass">
+    <div class="card-head"><span>Overview</span><b>Ativo</b></div>
+    <div class="metrics three">
+      <div><small>Custo atual</small><strong>R$ 82</strong></div>
+      <div><small>Estimativa</small><strong>R$ 96</strong></div>
+      <div><small>Total</small><strong>R$ 146</strong></div>
+    </div>
+    <div class="line-chart"><i style="height:38%"></i><i style="height:55%"></i><i style="height:44%"></i><i style="height:70%"></i><i style="height:60%"></i><i style="height:88%"></i><i style="height:74%"></i></div>
+    <div class="source-row"><span>Mercado Pago</span><b>Pago</b></div>
+    <div class="source-row"><span>Railway</span><b>Online</b></div>
+  </div>
+</section>
+<section class="grid three gap">
+  <div class="feature card"><h3>Clientes</h3><p>Cadastro, bloqueio, edição e status de pagamento em uma área admin.</p></div>
+  <div class="feature card"><h3>Projetos Railway</h3><p>Custos, ambiente, URL pública, status do deploy e limite combinado.</p></div>
+  <div class="feature card"><h3>Faturas</h3><p>Cobrança por período, taxa de gestão, Pix/cartão/boleto e histórico.</p></div>
+</section>
+{% endblock %}
