@@ -1,89 +1,98 @@
 console.log('Railway Manager MVP loaded');
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('[data-projects-carousel]').forEach((carousel) => {
-    const track = carousel.querySelector('.projects-carousel-track');
-    if (!track || !track.children.length) return;
+(function () {
+  const initProjectsCarousel = () => {
+    document.querySelectorAll('[data-projects-carousel]').forEach((carousel) => {
+      if (carousel.dataset.carouselReady === '1') return;
+      const track = carousel.querySelector('.projects-carousel-track');
+      if (!track || !track.children.length) return;
+      carousel.dataset.carouselReady = '1';
 
-    let isDown = false;
-    let startX = 0;
-    let startScrollLeft = 0;
-    let pausedUntil = 0;
-    let lastFrame = performance.now();
-    const speed = 42;
-    const copies = Math.max(Number(track.dataset.loopCopies || 8), 2);
+      let isDragging = false;
+      let startX = 0;
+      let startScrollLeft = 0;
+      let pausedUntil = 0;
+      let lastFrame = performance.now();
+      const speed = Number(carousel.dataset.speed || 55);
+      const copies = Math.max(Number(track.dataset.loopCopies || 8), 2);
 
-    const singleLoopWidth = () => track.scrollWidth / copies;
+      const getLoopWidth = () => {
+        const width = track.scrollWidth / copies;
+        return Number.isFinite(width) && width > 0 ? width : 0;
+      };
 
-    const normalizeScroll = () => {
-      const loopWidth = singleLoopWidth();
-      if (!loopWidth) return;
+      const normalizeScroll = () => {
+        const loopWidth = getLoopWidth();
+        if (!loopWidth) return;
+        const min = loopWidth * 2;
+        const max = loopWidth * 4;
+        if (carousel.scrollLeft >= max) carousel.scrollLeft -= loopWidth;
+        else if (carousel.scrollLeft <= min - loopWidth) carousel.scrollLeft += loopWidth;
+      };
 
-      const minSafeScroll = loopWidth * 2;
-      const maxSafeScroll = loopWidth * 4;
-
-      if (carousel.scrollLeft >= maxSafeScroll) {
-        carousel.scrollLeft -= loopWidth;
-      } else if (carousel.scrollLeft <= minSafeScroll - loopWidth) {
-        carousel.scrollLeft += loopWidth;
-      }
-    };
-
-    const pauseBriefly = (duration = 1200) => {
-      pausedUntil = performance.now() + duration;
-    };
-
-    carousel.addEventListener('pointerdown', (event) => {
-      isDown = true;
-      carousel.classList.add('dragging');
-      startX = event.clientX;
-      startScrollLeft = carousel.scrollLeft;
-      pauseBriefly(2200);
-      carousel.setPointerCapture?.(event.pointerId);
-    });
-
-    carousel.addEventListener('pointermove', (event) => {
-      if (!isDown) return;
-      const delta = event.clientX - startX;
-      carousel.scrollLeft = startScrollLeft - delta;
-      normalizeScroll();
-    });
-
-    const stopDragging = (event) => {
-      if (!isDown) return;
-      isDown = false;
-      carousel.classList.remove('dragging');
-      pauseBriefly(900);
-      carousel.releasePointerCapture?.(event.pointerId);
-    };
-
-    carousel.addEventListener('pointerup', stopDragging);
-    carousel.addEventListener('pointercancel', stopDragging);
-    carousel.addEventListener('mouseleave', () => {
-      if (isDown) carousel.classList.remove('dragging');
-      isDown = false;
-    });
-    carousel.addEventListener('wheel', () => {
-      pauseBriefly(1000);
-      requestAnimationFrame(normalizeScroll);
-    }, { passive: true });
-
-    const autoplay = (now) => {
-      const elapsed = Math.min((now - lastFrame) / 1000, 0.08);
-      lastFrame = now;
-
-      if (!isDown && now > pausedUntil) {
-        carousel.scrollLeft += speed * elapsed;
+      const centerLoop = () => {
+        const loopWidth = getLoopWidth();
+        if (!loopWidth) return;
+        carousel.scrollLeft = loopWidth * 3;
         normalizeScroll();
+      };
+
+      const pauseBriefly = (duration = 900) => {
+        pausedUntil = performance.now() + duration;
+      };
+
+      const stopDragging = (event) => {
+        if (!isDragging) return;
+        isDragging = false;
+        carousel.classList.remove('dragging');
+        pauseBriefly(700);
+        try { carousel.releasePointerCapture(event.pointerId); } catch (_) {}
+      };
+
+      carousel.addEventListener('pointerdown', (event) => {
+        isDragging = true;
+        carousel.classList.add('dragging');
+        startX = event.clientX;
+        startScrollLeft = carousel.scrollLeft;
+        pauseBriefly(1600);
+        try { carousel.setPointerCapture(event.pointerId); } catch (_) {}
+      });
+
+      carousel.addEventListener('pointermove', (event) => {
+        if (!isDragging) return;
+        carousel.scrollLeft = startScrollLeft - (event.clientX - startX);
+        normalizeScroll();
+      });
+      carousel.addEventListener('pointerup', stopDragging);
+      carousel.addEventListener('pointercancel', stopDragging);
+      carousel.addEventListener('pointerleave', stopDragging);
+      carousel.addEventListener('scroll', normalizeScroll, { passive: true });
+      carousel.addEventListener('wheel', () => pauseBriefly(1200), { passive: true });
+
+      const autoplay = (now) => {
+        const elapsed = Math.min((now - lastFrame) / 1000, 0.08);
+        lastFrame = now;
+        if (!isDragging && now > pausedUntil) {
+          carousel.scrollLeft += speed * elapsed;
+          normalizeScroll();
+        }
+        requestAnimationFrame(autoplay);
+      };
+
+      const start = () => {
+        centerLoop();
+        lastFrame = performance.now();
+        requestAnimationFrame(autoplay);
+      };
+
+      if (document.readyState === 'complete') start();
+      else {
+        window.addEventListener('load', start, { once: true });
+        setTimeout(start, 600);
       }
-
-      requestAnimationFrame(autoplay);
-    };
-
-    requestAnimationFrame(() => {
-      carousel.scrollLeft = singleLoopWidth() * 3;
-      lastFrame = performance.now();
-      requestAnimationFrame(autoplay);
     });
-  });
-});
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initProjectsCarousel);
+  else initProjectsCarousel();
+})();
