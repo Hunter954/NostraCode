@@ -21,8 +21,21 @@
 
 <div class="grid three gap">
   <div class="card metric"><small>Status</small><strong>{{ project.status|title }}</strong><span>{{ project.environment }}</span></div>
-  <div class="card metric"><small>Custo atual</small><strong>{{ project.current_cost|brl }}</strong><span>{% if project.last_cost_update %}Atualizado em {{ project.last_cost_update.strftime('%d/%m às %H:%M') }}{% else %}sem atualização{% endif %}</span></div>
+<div class="card metric"><small>Custo atual</small><strong>{{ project.current_cost|brl }}</strong><span>{% if project.last_cost_update %}Atualizado em {{ project.last_cost_update.strftime('%d/%m às %H:%M') }}{% else %}sem atualização{% endif %}</span></div>
   <div class="card metric"><small>Custo estimado</small><strong>{{ project.total_forecast|brl }}</strong><span>fim do mês pela Railway</span></div>
+</div>
+
+<div class="card mt project-commercial">
+  <div>
+    <span class="eyebrow">Apresentação comercial</span>
+    <h2>Descrição e stacks do projeto</h2>
+    <p>{{ project.description or project.notes or 'Sem descrição comercial cadastrada.' }}</p>
+    <div class="badge-row">{% for stack in project.stack_badges %}<span>{{ stack }}</span>{% else %}<span>Sem stack cadastrada</span>{% endfor %}</div>
+  </div>
+  {% if project.image_url %}
+    {% set image_src = project.image_url if project.image_url.startswith('http') else url_for('static', filename=project.image_url) %}
+    <img src="{{ image_src }}" alt="{{ project.name }}">
+  {% endif %}
 </div>
 
 <div class="grid two gap mt">

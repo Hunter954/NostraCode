@@ -3,30 +3,34 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Railway Manager{% endblock %}</title>
+  <title>{% block title %}Nostra Codes{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
   <div class="bg-glow one"></div>
   <div class="bg-glow two"></div>
   <header class="topbar">
-    <a class="brand" href="{{ url_for('main.index') }}"><span class="mark">R</span> Railway Manager</a>
-    <nav>
-      {% if current_user.is_authenticated %}
-        {% if current_user.is_admin %}<a href="{{ url_for('main.admin_dashboard') }}">Admin</a>{% endif %}
-        <a href="{{ url_for('main.client_dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('main.invoices') }}">Faturas</a>
-        <a href="{{ url_for('main.payments') }}">Pagamentos</a>
-        <a href="{{ url_for('main.profile') }}">Perfil</a>
-        <a class="btn small" href="{{ url_for('main.logout') }}">Sair</a>
-      {% else %}
-        <a href="{{ url_for('main.login') }}">Log in</a>
-        <a class="btn small" href="{{ url_for('main.register') }}">Sign up</a>
-      {% endif %}
-    </nav>
+    <div class="topbar-inner">
+      <a class="brand" href="{{ url_for('main.index') }}" aria-label="Nostra Codes">
+        <img class="brand-logo" src="{{ url_for('static', filename='img/logomarca-nostracodes.png') }}" alt="Nostra Codes">
+      </a>
+      <nav>
+        {% if current_user.is_authenticated %}
+          {% if current_user.is_admin %}<a href="{{ url_for('main.admin_dashboard') }}">Admin</a>{% endif %}
+          <a href="{{ url_for('main.client_dashboard') }}">Dashboard</a>
+          <a href="{{ url_for('main.invoices') }}">Faturas</a>
+          <a href="{{ url_for('main.payments') }}">Pagamentos</a>
+          <a href="{{ url_for('main.profile') }}">Perfil</a>
+          <a class="btn small" href="{{ url_for('main.logout') }}">Sair</a>
+        {% else %}
+          <a href="{{ url_for('main.login') }}">Entrar</a>
+          <a class="btn small" href="{{ url_for('main.register') }}">Criar conta</a>
+        {% endif %}
+      </nav>
+    </div>
   </header>
   <main class="page">
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -40,5 +44,11 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <img class="footer-logo" src="{{ url_for('static', filename='img/logomarca-nostracodes.png') }}" alt="Nostra Codes">
+      <p>Desenvolvido e Atualizado por: <strong>Kevin Premoli</strong></p>
+    </div>
+  </footer>
 </body>
 </html>

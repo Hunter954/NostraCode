@@ -1,31 +1,87 @@
 {% extends 'base.html' %}
-{% block title %}MVP Railway Manager{% endblock %}
+{% block title %}Nostra Codes | Sistemas personalizados{% endblock %}
 {% block content %}
-<section class="hero">
+<section class="hero hero-sales">
   <div>
     <span class="eyebrow">Painel SaaS para Railway + Mercado Pago</span>
-    <h1>Controle custos, faturas e clientes com um painel profissional.</h1>
-    <p>Um MVP em Flask para cobrar clientes que usam projetos hospedados no Railway, com visual escuro no estilo Framer.</p>
+    <h1>Sistemas personalizados para empresas que querem crescer mais rápido.</h1>
+    <p>Criamos plataformas sob medida com dashboard, automações, API WhatsApp, área de clientes, pagamentos, integrações e tudo que sua operação precisa para vender, atender e escalar com mais controle.</p>
     <div class="actions">
-      <a class="btn" href="{{ url_for('main.register') }}">Criar conta</a>
-      <a class="btn ghost" href="{{ url_for('main.login') }}">Entrar</a>
+      <a class="btn" href="{{ url_for('main.register') }}">Quero meu sistema</a>
+      <a class="btn ghost" href="{{ url_for('main.login') }}">Entrar no painel</a>
+    </div>
+    <div class="trust-row">
+      <span>Dashboard sob medida</span><span>API WhatsApp</span><span>Pagamentos</span><span>Automações</span>
     </div>
   </div>
-  <div class="hero-card glass">
-    <div class="card-head"><span>Overview</span><b>Ativo</b></div>
+  <div class="hero-card glass dashboard-preview">
+    <div class="card-head"><span>Nostra OS</span><b>Online</b></div>
     <div class="metrics three">
-      <div><small>Custo atual</small><strong>R$ 82</strong></div>
-      <div><small>Estimativa</small><strong>R$ 96</strong></div>
-      <div><small>Total</small><strong>R$ 146</strong></div>
+      <div><small>Leads</small><strong>+38%</strong></div>
+      <div><small>Atendimento</small><strong>24/7</strong></div>
+      <div><small>Vendas</small><strong>2.4x</strong></div>
     </div>
     <div class="line-chart"><i style="height:38%"></i><i style="height:55%"></i><i style="height:44%"></i><i style="height:70%"></i><i style="height:60%"></i><i style="height:88%"></i><i style="height:74%"></i></div>
-    <div class="source-row"><span>Mercado Pago</span><b>Pago</b></div>
-    <div class="source-row"><span>Railway</span><b>Online</b></div>
+    <div class="source-row"><span>WhatsApp API</span><b>Ativo</b></div>
+    <div class="source-row"><span>Mercado Pago</span><b>Integrado</b></div>
+    <div class="source-row"><span>Railway Deploy</span><b>Online</b></div>
   </div>
 </section>
+
+<section class="marquee-section">
+  <span class="eyebrow">Stack que acelera o seu projeto</span>
+  <div class="tech-marquee" aria-label="Tecnologias">
+    <div class="tech-track">
+      {% for tech in ['Flask','Python','Railway','PostgreSQL','Mercado Pago','WhatsApp API','Dashboards','Automações','APIs','SaaS','Landing Pages','CRM'] %}
+      <span>{{ tech }}</span>
+      {% endfor %}
+      {% for tech in ['Flask','Python','Railway','PostgreSQL','Mercado Pago','WhatsApp API','Dashboards','Automações','APIs','SaaS','Landing Pages','CRM'] %}
+      <span>{{ tech }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section-title compact">
+  <div><span class="eyebrow">O que entregamos</span><h1>Do atendimento ao financeiro, tudo conectado.</h1></div>
+</section>
 <section class="grid three gap">
-  <div class="feature card"><h3>Clientes</h3><p>Cadastro, bloqueio, edição e status de pagamento em uma área admin.</p></div>
-  <div class="feature card"><h3>Projetos Railway</h3><p>Custos, ambiente, URL pública, status do deploy e limite combinado.</p></div>
-  <div class="feature card"><h3>Faturas</h3><p>Cobrança por período, taxa de gestão, Pix/cartão/boleto e histórico.</p></div>
+  <div class="feature card"><h3>Dashboard personalizado</h3><p>Indicadores, relatórios e visão em tempo real para acompanhar sua empresa sem depender de planilhas soltas.</p></div>
+  <div class="feature card"><h3>API WhatsApp e automações</h3><p>Fluxos de atendimento, captação de leads, mensagens automáticas e integrações com o processo comercial.</p></div>
+  <div class="feature card"><h3>Pagamentos e área do cliente</h3><p>Cobranças, faturas, status de pagamento, acesso para clientes e integração com Mercado Pago.</p></div>
+</section>
+
+<section class="section-title compact mt-xl">
+  <div><span class="eyebrow">Projetos recentes</span><h1>Cases, stacks e soluções que podem inspirar o seu sistema.</h1></div>
+</section>
+<section class="projects-showcase grid three gap">
+  {% for project in recent_projects %}
+  <article class="project-showcase-card card">
+    {% if project.image_url %}
+      {% set image_src = project.image_url if project.image_url.startswith('http') else url_for('static', filename=project.image_url) %}
+      <img src="{{ image_src }}" alt="{{ project.name }}">
+    {% else %}
+      <div class="project-placeholder">{{ project.name[:1] }}</div>
+    {% endif %}
+    <div class="project-showcase-body">
+      <span class="pill {{ project.status }}">{{ project.status }}</span>
+      <h3>{{ project.name }}</h3>
+      <p>{{ project.description or project.notes or 'Sistema personalizado com integrações, painel de controle e automações para operação digital.' }}</p>
+      <div class="badge-row">
+        {% for stack in project.stack_badges %}<span>{{ stack }}</span>{% endfor %}
+      </div>
+    </div>
+  </article>
+  {% else %}
+  <article class="project-showcase-card card">
+    <div class="project-placeholder">N</div>
+    <div class="project-showcase-body">
+      <span class="pill ativo">modelo</span>
+      <h3>Dashboard Comercial</h3>
+      <p>Painel sob medida com métricas, WhatsApp API, pagamentos e automações para acelerar vendas.</p>
+      <div class="badge-row"><span>Dashboard</span><span>WhatsApp API</span><span>Mercado Pago</span></div>
+    </div>
+  </article>
+  {% endfor %}
 </section>
 {% endblock %}

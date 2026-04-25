@@ -59,8 +59,15 @@ class Project(db.Model):
     sync_error = db.Column(db.Text)
     latest_deployment_status = db.Column(db.String(80))
     previous_month_cost = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
+    image_url = db.Column(db.String(500))
+    description = db.Column(db.Text)
+    tech_stack = db.Column(db.String(500))
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def stack_badges(self):
+        return [item.strip() for item in (self.tech_stack or "").split(",") if item.strip()]
 
     invoices = db.relationship("Invoice", backref="project", lazy=True)
     railway_services = db.relationship("RailwayService", backref="project", lazy=True, cascade="all, delete-orphan")

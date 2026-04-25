@@ -1,12 +1,14 @@
 from datetime import datetime, date
 from decimal import Decimal
 from functools import wraps
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db
 from .models import User, Project, Invoice, Payment, RailwayUsageSnapshot
 from .services.mercadopago import create_payment_preference, fetch_payment
 from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects
+from werkzeug.utils import secure_filename
+import os
 
 bp = Blueprint("main", __name__)
 
@@ -24,11 +26,29 @@ def money(value):
     return Decimal(str(value or "0").replace(",", "."))
 
 
+def save_project_image(file_storage):
+    if not file_storage or not file_storage.filename:
+        return None
+    filename = secure_filename(file_storage.filename)
+    if not filename:
+        return None
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in {"png", "jpg", "jpeg", "webp", "gif"}:
+        flash("Use uma imagem PNG, JPG, WEBP ou GIF.", "warning")
+        return None
+    upload_dir = os.path.join(current_app.root_path, "static", "uploads", "projects")
+    os.makedirs(upload_dir, exist_ok=True)
+    unique_name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}-{filename}"
+    file_storage.save(os.path.join(upload_dir, unique_name))
+    return f"uploads/projects/{unique_name}"
+
+
 @bp.route("/")
 def index():
     if current_user.is_authenticated:
         return redirect(url_for("main.admin_dashboard" if current_user.is_admin else "main.client_dashboard"))
-    return render_template("landing.html")
+    recent_projects = Project.query.order_by(Project.created_at.desc()).limit(6).all()
+    return render_template("landing.html", recent_projects=recent_projects)
 
 
 @bp.route("/register", methods=["GET", "POST"])
@@ -207,6 +227,9 @@ def admin_project_new():
             railway_project_id=(request.form.get("railway_project_id") or "").strip(),
             status=request.form.get("status", "ativo"),
             plan=request.form.get("plan"),
+            image_url=(request.form.get("image_url") or "").strip() or save_project_image(request.files.get("image_file")),
+            description=request.form.get("description"),
+            tech_stack=request.form.get("tech_stack"),
             monthly_value=Decimal("0.00"),
             usage_limit=Decimal("0.00"),
             current_cost=Decimal("0.00"),
@@ -247,6 +270,10 @@ def admin_project_edit(project_id):
         project.railway_project_id = new_railway_project_id
         project.status = request.form.get("status")
         project.plan = request.form.get("plan")
+        uploaded_image = save_project_image(request.files.get("image_file"))
+        project.image_url = uploaded_image or (request.form.get("image_url") or "").strip() or project.image_url
+        project.description = request.form.get("description")
+        project.tech_stack = request.form.get("tech_stack")
         project.notes = request.form.get("notes")
 
         if old_railway_project_id != new_railway_project_id:

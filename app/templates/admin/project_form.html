@@ -3,8 +3,8 @@
 {% block content %}
 <div class="auth card wide">
   <h1>{{ 'Editar projeto' if project else 'Novo projeto' }}</h1>
-  <p class="muted">Preencha somente os dados principais. Nome interno, URL pública, ambiente, serviço e custos serão puxados automaticamente da Railway pelo ID do projeto.</p>
-  <form method="post" class="form grid two">
+  <p class="muted">Preencha os dados principais, a imagem de apresentação, a descrição comercial e as stacks usadas. Os dados técnicos e custos continuam sendo sincronizados pela Railway pelo ID do projeto.</p>
+  <form method="post" class="form grid two" enctype="multipart/form-data">
     <label>Cliente
       <select name="client_id" required>
         {% for client in clients %}<option value="{{ client.id }}" {% if project and project.client_id == client.id %}selected{% endif %}>{{ client.name }} - {{ client.email }}</option>{% endfor %}
@@ -20,7 +20,11 @@
       </select>
     </label>
     <label>Plano<input name="plan" value="{{ project.plan if project else 'Starter' }}"></label>
-    <label class="span2">Observações<textarea name="notes">{{ project.notes if project else '' }}</textarea></label>
+    <label>Foto do projeto<input type="file" name="image_file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
+    <label class="span2">URL da imagem do projeto<input name="image_url" value="{{ project.image_url if project else '' }}" placeholder="Cole uma URL ou envie uma imagem no campo acima"></label>
+    <label class="span2">Descrição do projeto<textarea name="description" placeholder="Ex.: Dashboard completo para vendas, atendimento, cobranças e automações.">{{ project.description if project else '' }}</textarea></label>
+    <label class="span2">Stacks usadas em badges<input name="tech_stack" value="{{ project.tech_stack if project else '' }}" placeholder="Ex.: Flask, Railway, Mercado Pago, WhatsApp API, PostgreSQL"></label>
+    <label class="span2">Observações internas<textarea name="notes">{{ project.notes if project else '' }}</textarea></label>
 
     {% if project %}
     <div class="span2 card soft">

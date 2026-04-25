@@ -102,6 +102,9 @@ def seed_admin_and_demo():
             current_cost=Decimal("82.00"),
             estimated_cost=Decimal("96.00"),
             management_fee=Decimal("50.00"),
+            image_url="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80",
+            description="Dashboard completo para acompanhar pedidos, vendas, cobranças e automações em tempo real.",
+            tech_stack="Flask, Railway, Mercado Pago, WhatsApp API, PostgreSQL",
             notes="Projeto demo criado automaticamente.",
         )
         db.session.add(project)
@@ -147,6 +150,9 @@ def ensure_schema_updates():
         "sync_error": "TEXT",
         "latest_deployment_status": "VARCHAR(80)",
         "previous_month_cost": "NUMERIC(10, 2) DEFAULT 0",
+        "image_url": "VARCHAR(500)",
+        "description": "TEXT",
+        "tech_stack": "VARCHAR(500)",
     }
     with db.engine.begin() as conn:
         for name, definition in columns.items():
