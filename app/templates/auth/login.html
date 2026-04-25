@@ -4,6 +4,8 @@
 <div class="auth card">
   <h1>Entrar</h1>
   <p>Acesse seu painel para acompanhar projetos, cobranças e atualizações.</p>
+  <a class="btn google-btn" href="{{ url_for('main.login_google') }}"><i class="bi bi-google"></i> Entrar com Google</a>
+  <div class="auth-separator"><span>ou entre com e-mail</span></div>
   <form method="post" class="form">
     <label>E-mail<input type="email" name="email" required></label>
     <label>Senha<input type="password" name="password" required></label>

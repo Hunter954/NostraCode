@@ -27,3 +27,37 @@ body{background:radial-gradient(circle at 18% 0%,rgba(80,32,212,.30) 0,rgba(5,5,
 .auth-switch a{color:#fff;font-weight:900;border-bottom:1px solid rgba(80,32,212,.75);padding-bottom:2px}
 .auth-switch a:hover{color:#ded7ff;border-color:#ded7ff}
 @media(max-width:520px){.auth-switch{flex-direction:column;gap:6px}.auth{margin:24px auto}}
+
+.google-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 1rem 0;
+  background: #fff;
+  color: #1f2937;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.google-btn:hover {
+  background: #f8fafc;
+  color: #111827;
+}
+
+.auth-separator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0 1rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.auth-separator::before,
+.auth-separator::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(148, 163, 184, 0.35);
+}

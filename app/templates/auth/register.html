@@ -3,6 +3,8 @@
 {% block content %}
 <div class="auth card wide">
   <h1>Criar conta</h1>
+  <a class="btn google-btn" href="{{ url_for('main.login_google') }}"><i class="bi bi-google"></i> Cadastrar com Google</a>
+  <div class="auth-separator"><span>ou cadastre com e-mail</span></div>
   <form method="post" class="form grid two">
     <label>Nome<input name="name" required></label>
     <label>E-mail<input type="email" name="email" required></label>

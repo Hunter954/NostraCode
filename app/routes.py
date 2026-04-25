@@ -1,14 +1,16 @@
 from datetime import datetime, date
 from decimal import Decimal
 from functools import wraps
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, current_app, send_from_directory
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, current_app, send_from_directory, session
 from flask_login import login_user, logout_user, login_required, current_user
-from .extensions import db
+from .extensions import db, oauth
 from .models import User, Project, Invoice, Payment, RailwayUsageSnapshot
 from .services.mercadopago import create_payment_preference, fetch_payment
 from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects
 from werkzeug.utils import secure_filename
+from authlib.integrations.base_client.errors import OAuthError
 import os
+import secrets
 
 bp = Blueprint("main", __name__)
 
@@ -24,6 +26,39 @@ def admin_required(view):
 
 def money(value):
     return Decimal(str(value or "0").replace(",", "."))
+
+
+def google_oauth_configured():
+    return bool(current_app.config.get("GOOGLE_CLIENT_ID") and current_app.config.get("GOOGLE_CLIENT_SECRET"))
+
+
+def login_destination(user):
+    return url_for("main.admin_dashboard" if user.is_admin else "main.client_dashboard")
+
+
+def upsert_google_user_from_profile(profile):
+    google_id = profile.get("sub")
+    email = (profile.get("email") or "").lower().strip()
+    name = profile.get("name") or email.split("@")[0]
+    avatar_url = profile.get("picture")
+
+    if not google_id or not email:
+        raise ValueError("O Google não retornou e-mail/identificador suficientes para login.")
+
+    user = User.query.filter_by(google_id=google_id).first()
+    if not user:
+        user = User.query.filter_by(email=email).first()
+
+    if user:
+        user.google_id = user.google_id or google_id
+        user.avatar_url = avatar_url or user.avatar_url
+        user.auth_provider = "google" if user.auth_provider != "email" else user.auth_provider
+        if not user.name:
+            user.name = name
+        db.session.commit()
+        return user
+
+    return None
 
 
 def save_project_image(file_storage):
@@ -94,8 +129,103 @@ def login():
             flash("Seu acesso está bloqueado. Fale com o suporte.", "danger")
             return redirect(url_for("main.login"))
         login_user(user)
-        return redirect(url_for("main.admin_dashboard" if user.is_admin else "main.client_dashboard"))
+        return redirect(login_destination(user))
     return render_template("auth/login.html")
+
+
+
+@bp.route("/login/google")
+def login_google():
+    if current_user.is_authenticated:
+        return redirect(login_destination(current_user))
+    if not google_oauth_configured() or not hasattr(oauth, "google"):
+        flash("Login com Google ainda não está configurado. Defina GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.", "warning")
+        return redirect(url_for("main.login"))
+    redirect_uri = url_for("main.google_callback", _external=True)
+    return oauth.google.authorize_redirect(redirect_uri)
+
+
+@bp.route("/auth/google/callback")
+def google_callback():
+    if not google_oauth_configured() or not hasattr(oauth, "google"):
+        flash("Login com Google ainda não está configurado.", "warning")
+        return redirect(url_for("main.login"))
+
+    try:
+        token = oauth.google.authorize_access_token()
+        profile = token.get("userinfo")
+        if not profile:
+            profile = oauth.google.get("https://openidconnect.googleapis.com/v1/userinfo").json()
+    except OAuthError as exc:
+        flash(f"Não foi possível entrar com Google: {exc.error}", "danger")
+        return redirect(url_for("main.login"))
+    except Exception:
+        flash("Não foi possível concluir o login com Google. Tente novamente.", "danger")
+        return redirect(url_for("main.login"))
+
+    try:
+        user = upsert_google_user_from_profile(profile)
+    except ValueError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("main.login"))
+
+    if user:
+        if not user.is_admin and not user.is_active_client:
+            flash("Seu acesso está bloqueado. Fale com o suporte.", "danger")
+            return redirect(url_for("main.login"))
+        login_user(user)
+        flash("Login com Google realizado com sucesso.", "success")
+        return redirect(login_destination(user))
+
+    session["google_signup"] = {
+        "google_id": profile.get("sub"),
+        "email": (profile.get("email") or "").lower().strip(),
+        "name": profile.get("name") or "",
+        "avatar_url": profile.get("picture") or "",
+    }
+    return redirect(url_for("main.complete_google_register"))
+
+
+@bp.route("/register/google/complete", methods=["GET", "POST"])
+def complete_google_register():
+    profile = session.get("google_signup")
+    if not profile:
+        flash("Inicie o cadastro pelo botão Entrar com Google.", "warning")
+        return redirect(url_for("main.register"))
+
+    if request.method == "POST":
+        if not request.form.get("accepted_terms"):
+            flash("Você precisa aceitar os termos.", "danger")
+            return redirect(url_for("main.complete_google_register"))
+
+        existing = User.query.filter_by(email=profile["email"]).first()
+        if existing:
+            existing.google_id = existing.google_id or profile["google_id"]
+            existing.avatar_url = profile.get("avatar_url") or existing.avatar_url
+            db.session.commit()
+            user = existing
+        else:
+            user = User(
+                name=request.form.get("name") or profile.get("name") or profile["email"].split("@")[0],
+                email=profile["email"],
+                company=request.form.get("company"),
+                whatsapp=request.form.get("whatsapp"),
+                document=request.form.get("document"),
+                accepted_terms=True,
+                google_id=profile["google_id"],
+                avatar_url=profile.get("avatar_url"),
+                auth_provider="google",
+            )
+            user.set_password(secrets.token_urlsafe(32))
+            db.session.add(user)
+            db.session.commit()
+
+        session.pop("google_signup", None)
+        login_user(user)
+        flash("Conta criada com Google com sucesso.", "success")
+        return redirect(login_destination(user))
+
+    return render_template("auth/google_register_complete.html", profile=profile)
 
 
 @bp.route("/logout")

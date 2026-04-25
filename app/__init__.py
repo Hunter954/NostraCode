@@ -4,7 +4,7 @@ from decimal import Decimal
 from flask import Flask, url_for
 from datetime import datetime
 from dotenv import load_dotenv
-from .extensions import db, login_manager
+from .extensions import db, login_manager, oauth
 from .models import User, Project, Invoice, RailwayService, RailwayUsageSnapshot
 
 
@@ -23,8 +23,20 @@ def create_app():
     app.config["PROJECT_UPLOAD_FOLDER"] = os.path.join(volume_root, "uploads", "projects")
 
 
+    app.config["GOOGLE_CLIENT_ID"] = os.getenv("GOOGLE_CLIENT_ID")
+    app.config["GOOGLE_CLIENT_SECRET"] = os.getenv("GOOGLE_CLIENT_SECRET")
+
     db.init_app(app)
     login_manager.init_app(app)
+    oauth.init_app(app)
+    if app.config.get("GOOGLE_CLIENT_ID") and app.config.get("GOOGLE_CLIENT_SECRET"):
+        oauth.register(
+            name="google",
+            client_id=app.config["GOOGLE_CLIENT_ID"],
+            client_secret=app.config["GOOGLE_CLIENT_SECRET"],
+            server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+            client_kwargs={"scope": "openid email profile"},
+        )
 
     from .routes import bp
     app.register_blueprint(bp)
@@ -151,7 +163,21 @@ def ensure_schema_updates():
     from sqlalchemy import inspect, text
 
     inspector = inspect(db.engine)
-    if "projects" not in inspector.get_table_names():
+    table_names = inspector.get_table_names()
+
+    if "users" in table_names:
+        existing_user_columns = {column["name"] for column in inspector.get_columns("users")}
+        user_columns = {
+            "google_id": "VARCHAR(255)",
+            "avatar_url": "VARCHAR(500)",
+            "auth_provider": "VARCHAR(40) DEFAULT 'email'",
+        }
+        with db.engine.begin() as conn:
+            for name, definition in user_columns.items():
+                if name not in existing_user_columns:
+                    conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {definition}"))
+
+    if "projects" not in table_names:
         return
 
     existing = {column["name"] for column in inspector.get_columns("projects")}
