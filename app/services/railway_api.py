@@ -38,19 +38,32 @@ def graphql(query: str, variables: Optional[Dict[str, Any]] = None) -> Dict[str,
         headers=_token_headers(),
         timeout=30,
     )
+
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {}
+
     if response.status_code == 401:
         raise RailwayAPIError("Token Railway inválido ou sem permissão.")
     if response.status_code == 403:
         raise RailwayAPIError("Token Railway sem permissão para este recurso.")
     if response.status_code == 429:
         raise RailwayAPIError("Limite de requisições da API Railway atingido. Tente novamente mais tarde.")
-    response.raise_for_status()
+    if response.status_code >= 400:
+        message = _graphql_error_message(payload) or response.text[:500] or response.reason
+        raise RailwayAPIError(f"Railway API HTTP {response.status_code}: {message}")
 
-    payload = response.json()
-    if payload.get("errors"):
-        message = "; ".join([err.get("message", str(err)) for err in payload["errors"]])
-        raise RailwayAPIError(message)
+    if isinstance(payload, dict) and payload.get("errors"):
+        raise RailwayAPIError(_graphql_error_message(payload) or "Erro GraphQL Railway.")
     return payload.get("data") or {}
+
+
+def _graphql_error_message(payload: Dict[str, Any]) -> str:
+    errors = payload.get("errors") if isinstance(payload, dict) else None
+    if not errors:
+        return ""
+    return "; ".join([err.get("message", str(err)) for err in errors if isinstance(err, dict)])
 
 
 def _nodes(value: Any) -> List[Dict[str, Any]]:
@@ -75,25 +88,6 @@ def _dig(value: Any, *keys: str) -> Any:
     return current
 
 
-def _find_first_number(value: Any, names: Tuple[str, ...]) -> Optional[Decimal]:
-    if isinstance(value, dict):
-        for key, item in value.items():
-            if key in names:
-                amount = _to_decimal(item)
-                if amount is not None:
-                    return amount
-        for item in value.values():
-            found = _find_first_number(item, names)
-            if found is not None:
-                return found
-    elif isinstance(value, list):
-        for item in value:
-            found = _find_first_number(item, names)
-            if found is not None:
-                return found
-    return None
-
-
 def _to_decimal(value: Any) -> Optional[Decimal]:
     if value is None or value == "":
         return None
@@ -101,8 +95,6 @@ def _to_decimal(value: Any) -> Optional[Decimal]:
         amount = Decimal(str(value))
     except (InvalidOperation, ValueError):
         return None
-    # Algumas APIs retornam centavos. Se vier um número muito alto, tratamos
-    # como centavos para evitar exibir valores absurdos no painel.
     if amount > Decimal("10000"):
         amount = amount / Decimal("100")
     return amount.quantize(Decimal("0.01"))
@@ -135,11 +127,7 @@ def get_project(project_id: str) -> Dict[str, Any]:
 
 
 def get_service_domains(project_id: str, environment_id: Optional[str], service_id: Optional[str]) -> Tuple[Optional[str], Dict[str, Any]]:
-    """Best-effort lookup for the public Railway URL.
-
-    Railway's GraphQL shape has changed over time, so this tries a few common
-    domain queries and extracts the first public/custom domain URI it can find.
-    """
+    """Best-effort lookup for the public Railway URL."""
     if not environment_id or not service_id:
         return None, {}
 
@@ -157,12 +145,12 @@ def get_service_domains(project_id: str, environment_id: Optional[str], service_
         ),
         (
             """
-            query ServiceDomains($environmentId: String!, $serviceId: String!) {
-              serviceDomains(environmentId: $environmentId, serviceId: $serviceId) {
-                edges { node { domain } }
-              }
-              customDomains(environmentId: $environmentId, serviceId: $serviceId) {
-                edges { node { domain } }
+            query ServiceInstanceDomains($environmentId: String!, $serviceId: String!) {
+              serviceInstance(environmentId: $environmentId, serviceId: $serviceId) {
+                domains {
+                  serviceDomains { domain targetPort }
+                  customDomains { domain targetPort }
+                }
               }
             }
             """,
@@ -188,7 +176,7 @@ def get_service_domains(project_id: str, environment_id: Optional[str], service_
 def _extract_domain(value: Any) -> Optional[str]:
     if isinstance(value, dict):
         for key, item in value.items():
-            if key in {"domain", "url", "uri"} and isinstance(item, str) and item:
+            if key in {"domain", "url", "uri", "staticUrl"} and isinstance(item, str) and item:
                 return item
             found = _extract_domain(item)
             if found:
@@ -204,85 +192,141 @@ def _extract_domain(value: Any) -> Optional[str]:
 def get_latest_deployment(project_id: str, environment_id: Optional[str], service_id: Optional[str]) -> Optional[Dict[str, Any]]:
     if not environment_id or not service_id:
         return None
-    queries = [
+
+    attempts = [
         (
             """
-            query LatestDeployment($projectId: String!, $environmentId: String!, $serviceId: String!) {
-              deployments(input: { projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId, first: 1 }) {
-                edges { node { id status createdAt updatedAt serviceId environmentId } }
-              }
-            }
-            """,
-            {"projectId": project_id, "environmentId": environment_id, "serviceId": service_id},
-        ),
-        (
-            """
-            query LatestDeployment($environmentId: String!, $serviceId: String!) {
-              deployments(input: { environmentId: $environmentId, serviceId: $serviceId, first: 1 }) {
-                edges { node { id status createdAt updatedAt serviceId environmentId } }
+            query ServiceInstanceDeployment($environmentId: String!, $serviceId: String!) {
+              serviceInstance(environmentId: $environmentId, serviceId: $serviceId) {
+                latestDeployment {
+                  id status createdAt updatedAt serviceId environmentId url staticUrl
+                }
               }
             }
             """,
             {"environmentId": environment_id, "serviceId": service_id},
+            lambda data: _dig(data, "serviceInstance", "latestDeployment"),
+        ),
+        (
+            """
+            query LatestDeployment($input: DeploymentListInput!) {
+              deployments(first: 1, input: $input) {
+                edges { node { id status createdAt updatedAt serviceId environmentId url staticUrl } }
+              }
+            }
+            """,
+            {"input": {"projectId": project_id, "environmentId": environment_id, "serviceId": service_id}},
+            lambda data: (_nodes(data.get("deployments")) or [None])[0],
         ),
     ]
-    last_error = None
-    for query, variables in queries:
+
+    errors = []
+    for query, variables, extractor in attempts:
         try:
             data = graphql(query, variables)
-            deployments = _nodes(data.get("deployments"))
-            return deployments[0] if deployments else None
+            deployment = extractor(data)
+            if deployment:
+                return deployment
         except Exception as exc:
-            last_error = exc
-    if last_error:
-        raise RailwayAPIError(f"Não foi possível buscar deploy: {last_error}")
+            errors.append(str(exc))
+    if errors:
+        raise RailwayAPIError(f"Não foi possível buscar deploy: {' | '.join(errors[-2:])}")
     return None
 
 
-def get_usage(project_id: str) -> Tuple[Optional[Decimal], Optional[Decimal], Dict[str, Any]]:
-    """Best-effort usage lookup.
+def _billing_period() -> Tuple[str, str]:
+    now = datetime.utcnow()
+    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if start.month == 12:
+        end = start.replace(year=start.year + 1, month=1)
+    else:
+        end = start.replace(month=start.month + 1)
+    return start.isoformat() + "Z", end.isoformat() + "Z"
 
-    A Railway API é GraphQL e pode evoluir. Por isso testamos algumas shapes
-    comuns e extraímos os campos de custo por nome. Se a conta/token não expuser
-    usage, a sincronização continua com projeto/serviços/deploy.
+
+def _sum_usage_values(items: Any, value_key: str) -> Optional[Decimal]:
+    rows = items if isinstance(items, list) else []
+    total = Decimal("0.00")
+    found = False
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        amount = _to_decimal(row.get(value_key))
+        if amount is None:
+            continue
+        total += amount
+        found = True
+    return total.quantize(Decimal("0.01")) if found else None
+
+
+def get_usage(project_id: str) -> Tuple[Optional[Decimal], Optional[Decimal], Dict[str, Any]]:
+    """Fetch current and estimated Railway project cost.
+
+    Railway's current GraphQL schema expects usage/estimatedUsage to receive
+    `measurements`. The old projectUsage/currentCost shapes can return 400.
     """
-    attempts = [
-        """
-        query ProjectUsage($projectId: String!) {
-          projectUsage(projectId: $projectId) {
-            currentCost estimatedCost current estimated total totalCost currency
-            periodStart periodEnd billingPeriodStart billingPeriodEnd
-          }
-        }
-        """,
-        """
-        query Usage($projectId: String!) {
-          usage(projectId: $projectId) {
-            currentCost estimatedCost current estimated total totalCost currency
-            periodStart periodEnd billingPeriodStart billingPeriodEnd
-          }
-        }
-        """,
-        """
-        query EstimatedUsage($projectId: String!) {
-          estimatedUsage(projectId: $projectId) {
-            currentCost estimatedCost current estimated total totalCost currency
-            periodStart periodEnd billingPeriodStart billingPeriodEnd
-          }
-        }
-        """,
+    measurements = [
+        "CPU_USAGE",
+        "MEMORY_USAGE_GB",
+        "NETWORK_TX_GB",
+        "DISK_USAGE_GB",
+        "EPHEMERAL_DISK_USAGE_GB",
     ]
+    start_date, end_date = _billing_period()
+    raw: Dict[str, Any] = {
+        "currency": "USD",
+        "periodStart": start_date,
+        "periodEnd": end_date,
+    }
     errors = []
-    for query in attempts:
-        try:
-            data = graphql(query, {"projectId": project_id})
-            raw = data.get("projectUsage") or data.get("usage") or data.get("estimatedUsage") or data
-            current = _find_first_number(raw, ("currentCost", "current", "cost", "totalCost", "total"))
-            estimated = _find_first_number(raw, ("estimatedCost", "estimated", "projectedCost", "forecastCost"))
-            return current, estimated, raw if isinstance(raw, dict) else {"raw": raw}
-        except Exception as exc:
-            errors.append(str(exc))
-    return None, None, {"usage_error": " | ".join(errors[-2:])}
+
+    try:
+        data = graphql(
+            """
+            query ProjectUsage($projectId: String!, $measurements: [MetricMeasurement!]!, $startDate: DateTime!, $endDate: DateTime!) {
+              usage(projectId: $projectId, measurements: $measurements, startDate: $startDate, endDate: $endDate) {
+                measurement
+                value
+              }
+            }
+            """,
+            {
+                "projectId": project_id,
+                "measurements": measurements,
+                "startDate": start_date,
+                "endDate": end_date,
+            },
+        )
+        raw["usage"] = data.get("usage") or []
+    except Exception as exc:
+        errors.append(str(exc))
+
+    try:
+        data = graphql(
+            """
+            query EstimatedUsage($projectId: String!, $measurements: [MetricMeasurement!]!) {
+              estimatedUsage(projectId: $projectId, measurements: $measurements) {
+                measurement
+                estimatedValue
+                projectId
+              }
+            }
+            """,
+            {"projectId": project_id, "measurements": measurements},
+        )
+        raw["estimatedUsage"] = data.get("estimatedUsage") or []
+    except Exception as exc:
+        errors.append(str(exc))
+
+    current = _sum_usage_values(raw.get("usage"), "value")
+    estimated = _sum_usage_values(raw.get("estimatedUsage"), "estimatedValue")
+
+    if current is None and estimated is None and errors:
+        raw["usage_error"] = " | ".join(errors[-2:])
+    elif errors:
+        raw["usage_warning"] = " | ".join(errors[-2:])
+
+    return current, estimated, raw
 
 
 def pick_environment(environments: List[Dict[str, Any]], preferred_id: Optional[str]) -> Optional[Dict[str, Any]]:
