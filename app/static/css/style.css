@@ -631,3 +631,15 @@ body::before{display:none!important}
     margin: 0 auto;
   }
 }
+
+/* Build-safe refinements for dashboard patch */
+.hero-sales.hero-centered .fake-system-shell {
+  width: min(1180px, 92vw);
+  max-width: 1180px;
+}
+
+@media (max-width: 640px) {
+  .hero-sales.hero-centered .fake-system-shell {
+    width: min(100%, 92vw);
+  }
+}
