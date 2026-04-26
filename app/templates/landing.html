@@ -9,30 +9,6 @@
       <a class="btn" href="{{ url_for('main.register') }}"><i class="bi bi-stars"></i> Tenho interesse</a>
       <a class="btn ghost" href="{{ url_for('main.login') }}"><i class="bi bi-grid-1x2"></i> Entrar no painel</a>
     </div>
-  </div>
-</section>
-
-<section class="marquee-section">
-  <span class="eyebrow">Stack que acelera o seu projeto</span>
-  <div class="tech-marquee" aria-label="Tecnologias">
-    <div class="tech-track">
-      {% for tech in ['Flask','Python','Railway','PostgreSQL','Mercado Pago','WhatsApp API','Dashboards','Automações','APIs','SaaS','Landing Pages','CRM'] %}
-      <span>{{ tech }}</span>
-      {% endfor %}
-      {% for tech in ['Flask','Python','Railway','PostgreSQL','Mercado Pago','WhatsApp API','Dashboards','Automações','APIs','SaaS','Landing Pages','CRM'] %}
-      <span>{{ tech }}</span>
-      {% endfor %}
-    </div>
-  </div>
-</section>
-
-<section class="scale-demo-section" aria-labelledby="scale-demo-title">
-  <div class="scale-demo-copy">
-    <span class="eyebrow">Scale without switching tools</span>
-    <h1 id="scale-demo-title">Um painel que parece produto pronto antes mesmo da primeira linha de integração.</h1>
-    <p>Simule métricas, relatórios, menus e estados visuais para validar a experiência com o cliente sem sair do fluxo de venda.</p>
-  </div>
-
   <div class="fake-system-shell" data-fake-dashboard>
     <div class="fake-system-stage">
       <div class="fake-desktop-window" data-dashboard-surface>
@@ -95,6 +71,21 @@
         </div>
         <div class="fake-dashboard-fade" aria-hidden="true"></div>
       </div>
+    </div>
+  </div>
+  </div>
+</section>
+
+<section class="marquee-section">
+  <span class="eyebrow">Stack que acelera o seu projeto</span>
+  <div class="tech-marquee" aria-label="Tecnologias">
+    <div class="tech-track">
+      {% for tech in ['Flask','Python','Railway','PostgreSQL','Mercado Pago','WhatsApp API','Dashboards','Automações','APIs','SaaS','Landing Pages','CRM'] %}
+      <span>{{ tech }}</span>
+      {% endfor %}
+      {% for tech in ['Flask','Python','Railway','PostgreSQL','Mercado Pago','WhatsApp API','Dashboards','Automações','APIs','SaaS','Landing Pages','CRM'] %}
+      <span>{{ tech }}</span>
+      {% endfor %}
     </div>
   </div>
 </section>
