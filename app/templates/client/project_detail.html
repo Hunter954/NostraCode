@@ -51,10 +51,46 @@
 </div>
 
 <div class="grid two gap mt">
-  <div class="card">
-    <h2>Consumo</h2>
-    <div class="line-chart tall"><i style="height:40%"></i><i style="height:48%"></i><i style="height:62%"></i><i style="height:58%"></i><i style="height:70%"></i><i style="height:82%"></i><i style="height:78%"></i><i style="height:92%"></i></div>
-    <p>Estimativa Railway: {{ project.estimated_cost|brl }}</p>
+  <div class="card usage-card">
+    <div class="usage-head">
+      <div class="usage-title">
+        <span class="usage-icon"><i class="bi bi-bar-chart-fill"></i></span>
+        <div>
+          <span class="eyebrow">Railway</span>
+          <h2>Consumo</h2>
+        </div>
+      </div>
+      {% if usage_chart.trend_percent is not none and usage_chart.has_history %}
+      <div class="usage-trend {{ 'down' if usage_chart.trend_percent < 0 else 'up' }}">
+        <strong>{{ '+' if usage_chart.trend_percent >= 0 else '' }}{{ usage_chart.trend_percent }}%</strong>
+        <span>vs início do período</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="usage-chart" aria-label="Histórico de consumo Railway">
+      <div class="usage-grid">
+        <span>{{ usage_chart.max_value|brl }}</span>
+        <span>{{ (usage_chart.max_value / 2)|brl }}</span>
+        <span>R$ 0,00</span>
+      </div>
+      <div class="usage-bars">
+        {% for point in usage_chart.points %}
+        <div class="usage-bar-wrap" title="{{ point.full_label }} · {{ point.value|brl }}">
+          <div class="usage-bar" style="height: {{ point.height }}%">
+            <span>{{ point.value|brl }}</span>
+          </div>
+          <small>{{ point.label }}</small>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="usage-summary">
+      <span class="usage-currency"><i class="bi bi-currency-dollar"></i></span>
+      <p>Estimativa Railway: <strong>{{ project.estimated_cost|brl }}</strong></p>
+      <small>{% if project.last_cost_update %}Atualizado em {{ project.last_cost_update.strftime('%d/%m às %H:%M') }}{% else %}Aguardando primeira sincronização{% endif %}</small>
+    </div>
   </div>
   <div class="card">
     <h2>Detalhes Railway</h2>

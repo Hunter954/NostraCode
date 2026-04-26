@@ -245,6 +245,52 @@ def client_dashboard():
     return render_template("client/dashboard.html", projects=projects, invoices=invoices, total_current=total_current, total_estimated=total_estimated, next_invoice=next_invoice)
 
 
+def build_usage_chart(snapshots, project):
+    """Prepare Railway usage snapshots for the project consumption card."""
+    ordered_snapshots = list(reversed(snapshots))
+    points = []
+
+    for snapshot in ordered_snapshots:
+        value = snapshot.estimated_cost if snapshot.estimated_cost not in (None, Decimal("0.00")) else snapshot.current_cost
+        value = Decimal(value or "0.00")
+        created_at = snapshot.created_at
+        points.append({
+            "label": created_at.strftime("%d/%m"),
+            "time": created_at.strftime("%H:%M"),
+            "full_label": created_at.strftime("%d/%m/%Y às %H:%M"),
+            "value": value,
+        })
+
+    if not points:
+        fallback_value = Decimal(project.estimated_cost or project.current_cost or "0.00")
+        points.append({
+            "label": "Atual",
+            "time": "",
+            "full_label": "Valor atual do projeto",
+            "value": fallback_value,
+        })
+
+    max_value = max([point["value"] for point in points] + [Decimal("1.00")])
+    chart_max = max_value * Decimal("1.18")
+    if chart_max <= 0:
+        chart_max = Decimal("1.00")
+
+    for point in points:
+        percentage = int((point["value"] / chart_max) * Decimal("100")) if chart_max else 0
+        point["height"] = max(12, min(96, percentage)) if point["value"] > 0 else 8
+
+    trend_percent = None
+    if len(points) >= 2 and points[0]["value"] > 0:
+        trend_percent = int(((points[-1]["value"] - points[0]["value"]) / points[0]["value"]) * Decimal("100"))
+
+    return {
+        "points": points,
+        "max_value": chart_max,
+        "trend_percent": trend_percent,
+        "has_history": len(ordered_snapshots) > 1,
+    }
+
+
 @bp.route("/projects/<int:project_id>")
 @login_required
 def project_detail(project_id):
@@ -253,7 +299,8 @@ def project_detail(project_id):
         abort(403)
     invoices = Invoice.query.filter_by(project_id=project.id).order_by(Invoice.created_at.desc()).all()
     snapshots = RailwayUsageSnapshot.query.filter_by(project_id=project.id).order_by(RailwayUsageSnapshot.created_at.desc()).limit(8).all()
-    return render_template("client/project_detail.html", project=project, invoices=invoices, snapshots=snapshots)
+    usage_chart = build_usage_chart(snapshots, project)
+    return render_template("client/project_detail.html", project=project, invoices=invoices, snapshots=snapshots, usage_chart=usage_chart)
 
 
 @bp.route("/invoices")
