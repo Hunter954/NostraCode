@@ -209,3 +209,97 @@ console.log('Railway Manager MVP loaded');
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initHeaderAndFlash);
   else initHeaderAndFlash();
 })();
+
+(function () {
+  const initFakeDashboards = () => {
+    document.querySelectorAll('[data-fake-dashboard]').forEach((dashboard) => {
+      if (dashboard.dataset.fakeDashboardReady === '1') return;
+      dashboard.dataset.fakeDashboardReady = '1';
+
+      const surface = dashboard.querySelector('[data-dashboard-surface]');
+      const themeToggle = dashboard.querySelector('[data-dashboard-theme-toggle]');
+      const submenuTrigger = dashboard.querySelector('[data-fake-submenu-trigger]');
+      const submenu = dashboard.querySelector('[data-fake-submenu]');
+      const navItems = dashboard.querySelectorAll('.fake-nav-item');
+      const metricCards = dashboard.querySelectorAll('.fake-metric-card');
+      const chart = dashboard.querySelector('.fake-hover-chart');
+      const chartBars = dashboard.querySelectorAll('.fake-chart-bar');
+      const tooltip = dashboard.querySelector('[data-chart-tooltip]');
+
+      const setThemeLabel = () => {
+        if (!surface || !themeToggle) return;
+        const isLight = surface.classList.contains('is-light');
+        const icon = themeToggle.querySelector('i');
+        const label = themeToggle.querySelector('span');
+        if (icon) icon.className = isLight ? 'bi bi-moon-stars-fill' : 'bi bi-sun-fill';
+        if (label) label.textContent = isLight ? 'Dark' : 'Light';
+      };
+
+      if (themeToggle && surface) {
+        setThemeLabel();
+        themeToggle.addEventListener('click', () => {
+          surface.classList.toggle('is-light');
+          setThemeLabel();
+        });
+      }
+
+      navItems.forEach((item) => {
+        item.addEventListener('click', () => {
+          if (item === submenuTrigger) return;
+          navItems.forEach((other) => other.classList.remove('is-active'));
+          item.classList.add('is-active');
+        });
+      });
+
+      if (submenuTrigger && submenu) {
+        submenuTrigger.addEventListener('click', () => {
+          const isOpen = submenu.classList.toggle('is-open');
+          submenuTrigger.classList.toggle('is-open', isOpen);
+          submenuTrigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+      }
+
+      metricCards.forEach((card) => {
+        card.addEventListener('mouseenter', () => {
+          metricCards.forEach((other) => other.classList.remove('is-active'));
+          card.classList.add('is-active');
+        });
+        card.addEventListener('focus', () => {
+          metricCards.forEach((other) => other.classList.remove('is-active'));
+          card.classList.add('is-active');
+        });
+      });
+
+      const showBarTooltip = (bar) => {
+        if (!chart || !tooltip || !bar) return;
+        chartBars.forEach((other) => other.classList.remove('is-active'));
+        bar.classList.add('is-active');
+        const value = Number(bar.dataset.value || 0);
+        const label = bar.dataset.label || '';
+        tooltip.textContent = `${label}: R$ ${(value * 0.19).toFixed(1)}k`;
+        const chartRect = chart.getBoundingClientRect();
+        const barRect = bar.getBoundingClientRect();
+        tooltip.style.left = `${barRect.left - chartRect.left + barRect.width / 2}px`;
+        tooltip.style.top = `${Math.max(14, barRect.top - chartRect.top - 36)}px`;
+        tooltip.classList.add('is-visible');
+      };
+
+      const hideBarTooltip = () => {
+        if (tooltip) tooltip.classList.remove('is-visible');
+        chartBars.forEach((bar) => bar.classList.remove('is-active'));
+      };
+
+      chartBars.forEach((bar, index) => {
+        bar.addEventListener('mouseenter', () => showBarTooltip(bar));
+        bar.addEventListener('focus', () => showBarTooltip(bar));
+        bar.addEventListener('mouseleave', hideBarTooltip);
+        bar.addEventListener('blur', hideBarTooltip);
+        if (index === 3) window.setTimeout(() => showBarTooltip(bar), 700);
+        if (index === 3) window.setTimeout(hideBarTooltip, 2500);
+      });
+    });
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initFakeDashboards);
+  else initFakeDashboards();
+})();

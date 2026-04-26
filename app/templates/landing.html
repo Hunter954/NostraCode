@@ -26,7 +26,81 @@
   </div>
 </section>
 
+<section class="scale-demo-section" aria-labelledby="scale-demo-title">
+  <div class="scale-demo-copy">
+    <span class="eyebrow">Scale without switching tools</span>
+    <h1 id="scale-demo-title">Um painel que parece produto pronto antes mesmo da primeira linha de integração.</h1>
+    <p>Simule métricas, relatórios, menus e estados visuais para validar a experiência com o cliente sem sair do fluxo de venda.</p>
+  </div>
+
+  <div class="fake-system-shell" data-fake-dashboard>
+    <div class="fake-system-stage">
+      <div class="fake-desktop-window" data-dashboard-surface>
+        <div class="fake-window-bar">
+          <div class="fake-traffic" aria-hidden="true"><span></span><span></span><span></span></div>
+          <div class="fake-window-address"><i class="bi bi-lock-fill"></i> dashboard.nostracodes.app</div>
+          <button class="fake-theme-toggle" type="button" data-dashboard-theme-toggle aria-label="Alternar dashboard entre modo claro e escuro">
+            <i class="bi bi-sun-fill"></i><span>Light</span>
+          </button>
+        </div>
+
+        <div class="fake-dashboard-layout">
+          <aside class="fake-sidebar" aria-label="Menu fake do dashboard">
+            <div class="fake-product-mark"><i class="bi bi-command"></i><span>NostraOS</span></div>
+            <button class="fake-nav-item is-active" type="button"><i class="bi bi-grid-1x2-fill"></i><span>Overview</span></button>
+            <button class="fake-nav-item" type="button" data-fake-submenu-trigger aria-expanded="false"><i class="bi bi-bar-chart-line-fill"></i><span>Relatórios</span><i class="bi bi-chevron-down"></i></button>
+            <div class="fake-submenu" data-fake-submenu>
+              <button type="button">Vendas por canal</button>
+              <button type="button">Funil comercial</button>
+              <button type="button">Cohorts</button>
+            </div>
+            <button class="fake-nav-item" type="button"><i class="bi bi-whatsapp"></i><span>WhatsApp</span></button>
+            <button class="fake-nav-item" type="button"><i class="bi bi-credit-card-2-front-fill"></i><span>Pagamentos</span></button>
+          </aside>
+
+          <section class="fake-dashboard-main" aria-label="Prévia interativa de dashboard">
+            <div class="fake-dashboard-topline">
+              <div>
+                <span class="fake-kicker">Live preview</span>
+                <h2>Growth Control</h2>
+              </div>
+              <div class="fake-user-stack"><span></span><span></span><span></span></div>
+            </div>
+
+            <div class="fake-metrics-grid">
+              <button class="fake-metric-card" type="button"><small>Receita mensal</small><strong>R$ 84.2k</strong><span><i class="bi bi-arrow-up-right"></i> +18.4%</span></button>
+              <button class="fake-metric-card" type="button"><small>Leads ativos</small><strong>1.284</strong><span><i class="bi bi-lightning-charge-fill"></i> automação ON</span></button>
+              <button class="fake-metric-card" type="button"><small>Conversão</small><strong>32%</strong><span><i class="bi bi-bullseye"></i> meta 28%</span></button>
+            </div>
+
+            <div class="fake-dashboard-grid">
+              <article class="fake-panel fake-chart-panel">
+                <div class="fake-panel-head"><span>Relatório de performance</span><b>7 dias</b></div>
+                <div class="fake-hover-chart" aria-label="Gráfico fake interativo">
+                  {% for value, label in [(45,'Seg'),(68,'Ter'),(54,'Qua'),(82,'Qui'),(74,'Sex'),(92,'Sáb'),(78,'Dom')] %}
+                    <button type="button" class="fake-chart-bar" style="--h: {{ value }}%" data-value="{{ value }}" data-label="{{ label }}"><span>{{ label }}</span></button>
+                  {% endfor %}
+                  <div class="fake-chart-tooltip" data-chart-tooltip>R$ 8.4k</div>
+                </div>
+              </article>
+
+              <article class="fake-panel fake-activity-panel">
+                <div class="fake-panel-head"><span>Automação</span><b>online</b></div>
+                <button type="button" class="fake-activity-item"><i class="bi bi-chat-dots-fill"></i><span><strong>Lead qualificado</strong><small>WhatsApp respondeu em 2s</small></span></button>
+                <button type="button" class="fake-activity-item"><i class="bi bi-receipt-cutoff"></i><span><strong>Fatura gerada</strong><small>Mercado Pago conectado</small></span></button>
+                <button type="button" class="fake-activity-item"><i class="bi bi-kanban-fill"></i><span><strong>Projeto avançou</strong><small>Etapa: validação visual</small></span></button>
+              </article>
+            </div>
+          </section>
+        </div>
+        <div class="fake-dashboard-fade" aria-hidden="true"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="section-title compact">
+
   <div><span class="eyebrow">O que entregamos</span><h1>Do atendimento ao financeiro, tudo conectado.</h1></div>
 </section>
 <section class="grid three gap premium-feature-grid">
