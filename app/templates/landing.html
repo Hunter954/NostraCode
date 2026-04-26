@@ -78,26 +78,23 @@
 
 <section class="marquee-section logo-marquee-section">
   <span class="eyebrow">Stack que acelera o seu projeto</span>
-  {% set logo_rows = [
-    [
-      {'file': 'openai.png', 'name': 'OpenAI'},
-      {'file': 'python.png', 'name': 'Python'},
-      {'file': 'postgresql.png', 'name': 'PostgreSQL'},
-      {'file': 'google cloud.png', 'name': 'Google Cloud'},
-      {'file': 'github.png', 'name': 'GitHub'}
-    ],
-    [
-      {'file': 'railway.png', 'name': 'Railway'},
-      {'file': 'cloudflare.png', 'name': 'Cloudflare'},
-      {'file': 'html5.png', 'name': 'HTML5'},
-      {'file': 'android.png', 'name': 'Android'},
-      {'file': 'windows.png', 'name': 'Windows'}
-    ]
+  {% set logos = [
+    {'file': 'openai.png', 'name': 'OpenAI'},
+    {'file': 'python.png', 'name': 'Python'},
+    {'file': 'postgresql.png', 'name': 'PostgreSQL'},
+    {'file': 'google cloud.png', 'name': 'Google Cloud'},
+    {'file': 'github.png', 'name': 'GitHub'},
+    {'file': 'railway.png', 'name': 'Railway'},
+    {'file': 'cloudflare.png', 'name': 'Cloudflare'},
+    {'file': 'html5.png', 'name': 'HTML5'},
+    {'file': 'android.png', 'name': 'Android'},
+    {'file': 'windows.png', 'name': 'Windows'}
   ] %}
+  {% set logo_rows = [logos, logos[5:] + logos[:5]] %}
   <div class="logo-marquee" aria-label="Tecnologias e integrações">
     {% for row in logo_rows %}
     <div class="logo-track {{ 'reverse' if loop.index is even else '' }}">
-      {% for repeat in range(2) %}
+      {% for repeat in range(6) %}
         {% for logo in row %}
         <span class="logo-pill">
           <img src="{{ url_for('static', filename='img/logos/' ~ logo.file) }}" alt="{{ logo.name }}" loading="lazy">
