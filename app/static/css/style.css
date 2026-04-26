@@ -71,3 +71,21 @@ body{background:radial-gradient(circle at 18% 0%,rgba(80,32,212,.30) 0,rgba(5,5,
 @media(max-width:900px){.topbar{padding:10px 0}.topbar-inner{width:min(100% - 24px,1180px);align-items:center;flex-direction:row;gap:10px}.brand-logo{width:128px;max-height:44px}.nav-actions{margin-left:auto}.nav-public{gap:7px}.nav-public .btn.small{padding:8px 11px;font-size:12px;white-space:nowrap}.nav-login{font-size:12px;padding:8px 9px}.user-menu-text{display:none}.user-menu-toggle{padding:6px 9px 6px 6px}.user-menu-panel{right:0;top:calc(100% + 10px)}.page{padding-top:34px}.flash-wrap{top:70px;right:12px;width:calc(100vw - 24px)}}
 
 @media(max-width:380px){.brand-logo{width:112px}.nav-public .btn.small{padding:7px 9px}.nav-login{padding:7px 6px}.user-menu-toggle .bi-chevron-down{display:none}}
+
+/* Correção geral do painel mobile: impede estouro lateral e transforma tabelas em cards */
+html,body{width:100%;max-width:100%;overflow-x:hidden}img,svg,video,canvas{max-width:100%;height:auto}.page,.topbar-inner,.footer-inner{max-width:100%}.grid,.card,.glass,.table-wrap,.admin-project-list,.admin-project-item,.project-card,.section-title,.actions{min-width:0}.card,.glass{max-width:100%;overflow:hidden}.table-wrap{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}table{min-width:0}th,td{min-width:0;overflow-wrap:anywhere;word-break:normal}.metric strong,.metrics strong{overflow-wrap:anywhere}.admin-project-item>span,.project-card p,.card-head span{min-width:0;overflow-wrap:anywhere}.admin-project-item b{display:block;line-height:1.2;overflow-wrap:anywhere}.admin-project-item small{line-height:1.35}.admin-project-item em i{max-width:100%;overflow-wrap:anywhere}.user-menu-panel{max-width:calc(100vw - 24px)}
+
+@media(max-width:900px){
+  .page{width:100%;padding:28px 16px 38px;margin:0 auto}
+  .grid.two,.grid.three,.grid.four,.metrics.three{grid-template-columns:minmax(0,1fr)!important}
+  .gap{gap:16px}.mt{margin-top:18px}.card{padding:20px;border-radius:20px}.section-title{gap:14px;margin-bottom:18px}.section-title h1{font-size:clamp(30px,9vw,42px);line-height:1;letter-spacing:-.06em}.eyebrow{font-size:11px}.actions{width:100%;display:grid;grid-template-columns:1fr;gap:10px}.actions .btn,.actions button.btn,.section-title form{width:100%}.actions form{display:block}.actions .btn,.actions button.btn{justify-content:center;white-space:normal;text-align:center}.metric{padding:20px}.metric strong,.metrics strong{font-size:clamp(22px,7vw,30px)}
+  .admin-project-list{gap:12px}.admin-project-item{grid-template-columns:52px minmax(0,1fr);gap:12px;padding:12px;border-radius:16px}.admin-project-item .pill{grid-column:2;justify-self:start;margin-top:2px}.admin-project-item em{gap:6px}.admin-project-item em i{font-size:11px;line-height:1.25}.project-card .card-head{gap:10px;align-items:flex-start}.project-card .card-head b{flex:0 0 auto}.footer-inner{width:100%;padding:0 16px}
+}
+
+@media(max-width:640px){
+  .card h2{font-size:24px;margin-bottom:18px}.table-wrap{overflow-x:visible}table,thead,tbody,tr,td{display:block;width:100%}thead{display:none}tbody{display:grid;gap:12px}tr{border:1px solid rgba(255,255,255,.10);border-radius:16px;background:rgba(255,255,255,.035);padding:12px}td{border:0!important;padding:8px 0!important;display:flex!important;align-items:flex-start;justify-content:space-between;gap:16px;text-align:right;line-height:1.25}td::before{content:attr(data-label);color:var(--muted);font-size:12px;font-weight:800;text-align:left;flex:0 0 38%;max-width:38%}td[colspan]{text-align:left;display:block!important}td[colspan]::before{display:none}td a{font-weight:900}.pill{white-space:normal;text-align:center;justify-content:center}.topbar-inner{width:100%;padding:0 12px}.brand-logo{width:122px}.user-menu-avatar{width:32px;height:32px;flex-basis:32px}.user-menu-toggle{gap:7px}.user-menu-panel{right:0;width:calc(100vw - 24px)}
+}
+
+@media(max-width:420px){
+  .page{padding-left:12px;padding-right:12px}.card{padding:18px;border-radius:18px}.metric{padding:18px}.admin-project-item{grid-template-columns:48px minmax(0,1fr);padding:11px}.project-thumb-placeholder,.admin-project-item img{width:48px;height:48px;border-radius:12px}.brand-logo{width:112px}.btn{padding:11px 16px}.section-title h1{font-size:32px}td{gap:12px}td::before{flex-basis:42%;max-width:42%}
+}

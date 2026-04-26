@@ -1,1 +1,32 @@
-<div class="table-wrap"><table><thead><tr><th>Fatura</th><th>Projeto</th><th>Período</th><th>Total</th><th>Status</th><th>Vencimento</th><th></th></tr></thead><tbody>{% for invoice in invoices %}<tr><td>#{{ invoice.number }}</td><td>{{ invoice.project.name }}</td><td>{{ invoice.period }}</td><td>{{ invoice.total|brl }}</td><td><span class="pill {{ invoice.status|replace(' ', '-') }}">{{ invoice.status }}</span></td><td>{{ invoice.due_date|datebr }}</td><td><a href="{{ url_for('main.invoice_detail', invoice_id=invoice.id) }}">Detalhes</a></td></tr>{% else %}<tr><td colspan="7">Nenhuma fatura encontrada.</td></tr>{% endfor %}</tbody></table></div>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Fatura</th>
+        <th>Projeto</th>
+        <th>Período</th>
+        <th>Total</th>
+        <th>Status</th>
+        <th>Vencimento</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for invoice in invoices %}
+      <tr>
+        <td data-label="Fatura">#{{ invoice.number }}</td>
+        <td data-label="Projeto">{{ invoice.project.name }}</td>
+        <td data-label="Período">{{ invoice.period }}</td>
+        <td data-label="Total">{{ invoice.total|brl }}</td>
+        <td data-label="Status"><span class="pill {{ invoice.status|replace(' ', '-') }}">{{ invoice.status }}</span></td>
+        <td data-label="Vencimento">{{ invoice.due_date|datebr }}</td>
+        <td data-label="Ação"><a href="{{ url_for('main.invoice_detail', invoice_id=invoice.id) }}">Detalhes</a></td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7">Nenhuma fatura encontrada.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
