@@ -84,6 +84,13 @@ def uploaded_project_image(filename):
     return send_from_directory(upload_dir, filename, max_age=86400)
 
 
+
+
+@bp.route("/healthz")
+def healthz():
+    return jsonify({"status": "ok"}), 200
+
+
 @bp.route("/")
 def index():
     if current_user.is_authenticated:
