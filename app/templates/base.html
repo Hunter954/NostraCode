@@ -18,27 +18,55 @@
       <a class="brand" href="{{ url_for('main.index') }}" aria-label="Nostra Codes">
         <img class="brand-logo" src="{{ url_for('static', filename='img/logomarca-nostracodes.png') }}" alt="Nostra Codes">
       </a>
-      <nav>
-        {% if current_user.is_authenticated %}
-          {% if current_user.is_admin %}<a href="{{ url_for('main.admin_dashboard') }}">Admin</a>{% endif %}
-          <a href="{{ url_for('main.client_dashboard') }}">Dashboard</a>
-          <a href="{{ url_for('main.invoices') }}">Faturas</a>
-          <a href="{{ url_for('main.payments') }}">Pagamentos</a>
-          <a href="{{ url_for('main.profile') }}">Perfil</a>
-          <a class="btn small" href="{{ url_for('main.logout') }}">Sair</a>
-        {% else %}
-          <a href="{{ url_for('main.login') }}">Entrar</a>
+
+      {% if current_user.is_authenticated %}
+        <nav class="nav-actions nav-user" aria-label="Menu da conta">
+          <div class="user-menu" data-user-menu>
+            <button class="user-menu-toggle" type="button" aria-haspopup="true" aria-expanded="false" data-user-menu-toggle>
+              {% if current_user.avatar_url %}
+                <img class="user-menu-avatar" src="{{ current_user.avatar_url }}" alt="{{ current_user.name }}">
+              {% else %}
+                <span class="user-menu-avatar user-menu-initials">{{ (current_user.name or current_user.email or 'U')[:1]|upper }}</span>
+              {% endif %}
+              <span class="user-menu-text">
+                <small>Minha conta</small>
+                <strong>{{ current_user.name }}</strong>
+              </span>
+              <i class="bi bi-chevron-down"></i>
+            </button>
+            <div class="user-menu-panel" data-user-menu-panel>
+              <div class="user-menu-head">
+                <b>{{ current_user.name }}</b>
+                <span>{{ current_user.email }}</span>
+              </div>
+              {% if current_user.is_admin %}<a href="{{ url_for('main.admin_dashboard') }}"><i class="bi bi-shield-lock"></i> Admin</a>{% endif %}
+              <a href="{{ url_for('main.client_dashboard') }}"><i class="bi bi-grid-1x2"></i> Dashboard</a>
+              <a href="{{ url_for('main.invoices') }}"><i class="bi bi-receipt"></i> Faturas</a>
+              <a href="{{ url_for('main.payments') }}"><i class="bi bi-credit-card"></i> Pagamentos</a>
+              <a href="{{ url_for('main.profile') }}"><i class="bi bi-person"></i> Perfil</a>
+              <a class="user-menu-logout" href="{{ url_for('main.logout') }}"><i class="bi bi-box-arrow-right"></i> Sair</a>
+            </div>
+          </div>
+        </nav>
+      {% else %}
+        <nav class="nav-actions nav-public" aria-label="Acesso">
+          <a class="nav-login" href="{{ url_for('main.login') }}">Entrar</a>
           <a class="btn small" href="{{ url_for('main.register') }}">Criar conta</a>
-        {% endif %}
-      </nav>
+        </nav>
+      {% endif %}
     </div>
   </header>
   <main class="page">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        <div class="flash-wrap">
+        <div class="flash-wrap" aria-live="polite">
         {% for category, message in messages %}
-          <div class="flash {{ category }}">{{ message }}</div>
+          <div class="flash {{ category }}" data-flash-message>
+            <span>{{ message }}</span>
+            <button class="flash-close" type="button" aria-label="Fechar mensagem" data-flash-close>
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
         {% endfor %}
         </div>
       {% endif %}

@@ -162,3 +162,50 @@ console.log('Railway Manager MVP loaded');
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initProjectsCarousel);
   else initProjectsCarousel();
 })();
+
+(function () {
+  const closeFlash = (flash) => {
+    if (!flash || flash.dataset.closing === '1') return;
+    flash.dataset.closing = '1';
+    flash.classList.add('is-hiding');
+    window.setTimeout(() => flash.remove(), 240);
+  };
+
+  const initHeaderAndFlash = () => {
+    document.querySelectorAll('[data-user-menu]').forEach((menu) => {
+      if (menu.dataset.menuReady === '1') return;
+      menu.dataset.menuReady = '1';
+      const toggle = menu.querySelector('[data-user-menu-toggle]');
+      if (!toggle) return;
+
+      const setOpen = (open) => {
+        menu.classList.toggle('is-open', open);
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      };
+
+      toggle.addEventListener('click', (event) => {
+        event.stopPropagation();
+        setOpen(!menu.classList.contains('is-open'));
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!menu.contains(event.target)) setOpen(false);
+      });
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') setOpen(false);
+      });
+    });
+
+    document.querySelectorAll('[data-flash-message]').forEach((flash) => {
+      if (flash.dataset.flashReady === '1') return;
+      flash.dataset.flashReady = '1';
+      const closeButton = flash.querySelector('[data-flash-close]');
+      if (closeButton) closeButton.addEventListener('click', () => closeFlash(flash));
+      window.setTimeout(() => closeFlash(flash), 5000);
+    });
+  };
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initHeaderAndFlash);
+  else initHeaderAndFlash();
+})();
