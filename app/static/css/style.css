@@ -279,3 +279,11 @@ body::before{display:none!important}
 .fake-dashboard-fade{position:absolute;left:-1px;right:-1px;bottom:-2px;height:390px;background:linear-gradient(180deg,rgba(5,5,5,0) 0%,rgba(5,5,5,.24) 14%,rgba(5,5,5,.74) 42%,#050505 76%,#050505 100%);pointer-events:none;z-index:12}
 @media(max-width:980px){.hero-sales.hero-centered .hero-copy{width:min(1180px,92vw);max-width:1180px}.fake-dashboard-fade{height:340px;background:linear-gradient(180deg,rgba(5,5,5,0) 0%,rgba(5,5,5,.28) 16%,rgba(5,5,5,.78) 44%,#050505 78%,#050505 100%)}}
 @media(max-width:640px){.hero-sales.hero-centered .hero-copy{width:min(100%,92vw)}.fake-system-stage{margin-left:0;margin-right:0;border-radius:12px}.fake-desktop-window{border-radius:12px}.fake-window-address,.fake-theme-toggle{border-radius:8px}.fake-dashboard-fade{left:-8px;right:-8px;height:360px;background:linear-gradient(180deg,rgba(5,5,5,0) 0%,rgba(5,5,5,.34) 14%,rgba(5,5,5,.84) 40%,#050505 74%,#050505 100%)}}
+
+/* Final dashboard fade + default light refinements */
+.fake-dashboard-fade{position:absolute;left:-28px;right:-28px;bottom:-72px;height:470px;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.10) 10%,rgba(0,0,0,.30) 24%,rgba(0,0,0,.56) 40%,rgba(0,0,0,.78) 56%,rgba(0,0,0,.92) 70%,#000 88%,#000 100%);pointer-events:none;z-index:12}
+.fake-dashboard-fade:after{content:"";position:absolute;left:0;right:0;bottom:-80px;height:170px;background:#000}
+.fake-system-stage{overflow:visible}
+.fake-desktop-window.is-light{border-color:rgba(109,40,217,.13)}
+@media(max-width:980px){.fake-dashboard-fade{left:-22px;right:-22px;bottom:-66px;height:430px;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.12) 10%,rgba(0,0,0,.36) 26%,rgba(0,0,0,.64) 44%,rgba(0,0,0,.86) 64%,#000 86%,#000 100%)}}
+@media(max-width:640px){.fake-dashboard-fade{left:-16px;right:-16px;bottom:-58px;height:410px;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.16) 10%,rgba(0,0,0,.42) 28%,rgba(0,0,0,.72) 48%,rgba(0,0,0,.92) 68%,#000 88%,#000 100%)}}
