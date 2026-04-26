@@ -220,6 +220,8 @@ console.log('Railway Manager MVP loaded');
       const themeToggle = dashboard.querySelector('[data-dashboard-theme-toggle]');
       const submenuTrigger = dashboard.querySelector('[data-fake-submenu-trigger]');
       const submenu = dashboard.querySelector('[data-fake-submenu]');
+      const mobileMenuToggle = dashboard.querySelector('[data-fake-mobile-menu-toggle]');
+      const sidebar = dashboard.querySelector('.fake-sidebar');
       const navItems = dashboard.querySelectorAll('.fake-nav-item');
       const metricCards = dashboard.querySelectorAll('.fake-metric-card');
       const chart = dashboard.querySelector('.fake-hover-chart');
@@ -240,6 +242,14 @@ console.log('Railway Manager MVP loaded');
         themeToggle.addEventListener('click', () => {
           surface.classList.toggle('is-light');
           setThemeLabel();
+        });
+      }
+
+      if (mobileMenuToggle && sidebar) {
+        mobileMenuToggle.addEventListener('click', () => {
+          const isOpen = sidebar.classList.toggle('is-open');
+          mobileMenuToggle.classList.toggle('is-open', isOpen);
+          mobileMenuToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
         });
       }
 
