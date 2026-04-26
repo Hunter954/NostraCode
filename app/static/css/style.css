@@ -247,3 +247,10 @@ body::before{display:none!important}
 .bg-glow{display:none!important}
 .topbar{background:rgba(0,0,0,.88)!important}
 .site-footer{background:#000000!important}
+
+/* Hero centralizado */
+.hero-centered{grid-template-columns:1fr;place-items:center;text-align:center;min-height:620px}
+.hero-centered .hero-copy{max-width:980px;margin:0 auto}
+.hero-centered h1{max-width:none;margin-left:auto;margin-right:auto}
+.hero-centered p{max-width:none;margin-left:auto;margin-right:auto}
+.hero-centered .actions{justify-content:center}
