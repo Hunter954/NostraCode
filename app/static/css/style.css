@@ -239,3 +239,11 @@ body::before{
 @media(max-width:1100px){.premium-hero{grid-template-columns:1fr}.premium-dashboard-card{max-width:720px;width:100%;margin:0 auto}.hero-sales{min-height:0}}
 @media(max-width:900px){.page{padding-top:38px}.premium-hero{gap:28px}.premium-dashboard-card{min-height:auto;padding:24px}.premium-title-group h2{font-size:34px}.premium-chart{height:230px}.premium-chart-bars{gap:10px}.premium-chart-bars small{font-size:10px}.premium-feature-grid .feature{padding:24px}.auth.card{padding:24px}}
 @media(max-width:640px){.premium-card-head{display:grid}.premium-trend{text-align:left;min-width:0}.premium-trend strong{justify-content:flex-start}.premium-chart{height:220px;padding-left:30px}.premium-chart-bars{left:46px;gap:7px}.premium-chart-bars i{border-radius:14px 14px 5px 5px}.premium-chart-grid{font-size:10px}.premium-summary-row p{font-size:15px}.premium-summary-row strong{font-size:18px}.premium-icon{width:52px;height:52px;border-radius:17px}.premium-title-group h2{font-size:30px}}
+
+/* Background correction: keep the site shell pure black while preserving the purple UI/cards */
+:root{--bg:#000000}
+html,body{background:#000000!important;background-color:#000000!important}
+body::before{display:none!important}
+.bg-glow{display:none!important}
+.topbar{background:rgba(0,0,0,.88)!important}
+.site-footer{background:#000000!important}
