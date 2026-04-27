@@ -1,67 +1,151 @@
 {% extends 'base.html' %}
 {% block title %}Clientes{% endblock %}
 {% block content %}
-<div class="section-title admin-clients-title">
+<div class="section-title clients-title">
   <div>
     <span class="eyebrow">Admin</span>
     <h1>Clientes</h1>
-    <p class="muted">Edite os dados, altere a senha, bloqueie ou exclua clientes cadastrados.</p>
+    <p class="muted">Gerencie cadastro, acesso, empresa, contato e status dos clientes.</p>
   </div>
+  <span class="clients-count">{{ clients|length }} cliente{{ '' if clients|length == 1 else 's' }}</span>
 </div>
 
-<div class="admin-client-grid">
+<div class="clients-list">
   {% for client in clients %}
-    <article class="card admin-client-card">
-      <div class="admin-client-head">
-        <div class="admin-client-avatar">{{ (client.name or client.email or 'C')[:1]|upper }}</div>
-        <div>
-          <h2>{{ client.name }}</h2>
-          <a href="mailto:{{ client.email }}">{{ client.email }}</a>
-          <span>{{ client.company or 'Sem empresa informada' }}</span>
+    <article class="client-row {{ 'is-blocked' if not client.is_active_client else '' }}">
+      <aside class="client-actions-panel">
+        <button
+          class="manager-action primary open-client-modal"
+          type="button"
+          data-modal-id="client-modal-{{ client.id }}">
+          <i class="bi bi-pencil-square"></i>
+          <span>Editar</span>
+        </button>
+
+        <form method="post" action="{{ url_for('main.toggle_client', user_id=client.id) }}">
+          <button class="manager-action" type="submit">
+            <i class="bi {{ 'bi-lock' if client.is_active_client else 'bi-unlock' }}"></i>
+            <span>{{ 'Bloquear' if client.is_active_client else 'Ativar' }}</span>
+          </button>
+        </form>
+
+        <form method="post" action="{{ url_for('main.admin_client_delete', user_id=client.id) }}" onsubmit="return confirm('Tem certeza que deseja excluir este cliente? Esta ação também remove projetos, faturas e pagamentos vinculados.');">
+          <button class="manager-action danger" type="submit">
+            <i class="bi bi-trash3"></i>
+            <span>Excluir</span>
+          </button>
+        </form>
+      </aside>
+
+      <div class="client-main-info">
+        <div class="client-avatar">{{ (client.name or client.email or '?')[:1]|upper }}</div>
+        <div class="client-identity">
+          <div class="client-name-line">
+            <h2>{{ client.name }}</h2>
+            <span class="pill {{ 'ativo' if client.is_active_client else 'suspenso' }}">{{ 'ativo' if client.is_active_client else 'bloqueado' }}</span>
+          </div>
+          <div class="client-meta-grid">
+            <span><i class="bi bi-envelope"></i>{{ client.email }}</span>
+            <span><i class="bi bi-building"></i>{{ client.company or 'Sem empresa' }}</span>
+            <span><i class="bi bi-whatsapp"></i>{{ client.whatsapp or 'Sem WhatsApp' }}</span>
+            <span><i class="bi bi-file-earmark-text"></i>{{ client.document or 'Sem documento' }}</span>
+          </div>
         </div>
-        <span class="pill {{ 'ativo' if client.is_active_client else 'suspenso' }}">{{ 'ativo' if client.is_active_client else 'bloqueado' }}</span>
+        <div class="client-stats-card">
+          <small>Projetos</small>
+          <strong>{{ client.projects|length }}</strong>
+        </div>
       </div>
+    </article>
 
-      <div class="admin-client-meta">
-        <span><i class="bi bi-folder2-open"></i>{{ client.projects|length }} projeto{{ '' if client.projects|length == 1 else 's' }}</span>
-        <span><i class="bi bi-whatsapp"></i>{{ client.whatsapp or 'Sem WhatsApp' }}</span>
-        <span><i class="bi bi-file-earmark-text"></i>{{ client.document or 'Sem CPF/CNPJ' }}</span>
-      </div>
+    <div class="client-modal" id="client-modal-{{ client.id }}" aria-hidden="true">
+      <div class="client-modal-backdrop" data-close-modal></div>
+      <section class="client-modal-card" role="dialog" aria-modal="true" aria-labelledby="client-modal-title-{{ client.id }}">
+        <button class="modal-close" type="button" data-close-modal aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+        <div class="modal-heading">
+          <span class="eyebrow">Editar cliente</span>
+          <h2 id="client-modal-title-{{ client.id }}">{{ client.name }}</h2>
+          <p>Atualize os dados de acesso e cadastro do cliente em um só lugar.</p>
+        </div>
 
-      <details class="client-editor">
-        <summary><i class="bi bi-pencil-square"></i> Editar dados do cliente</summary>
-        <form method="post" action="{{ url_for('main.admin_client_update', user_id=client.id) }}" class="form grid two client-edit-form">
-          <label>Nome<input name="name" value="{{ client.name }}" required></label>
-          <label>E-mail<input type="email" name="email" value="{{ client.email }}" required></label>
-          <label>Empresa<input name="company" value="{{ client.company or '' }}"></label>
-          <label>WhatsApp<input name="whatsapp" value="{{ client.whatsapp or '' }}"></label>
-          <label>CPF/CNPJ<input name="document" value="{{ client.document or '' }}"></label>
-          <label>Nova senha<input type="password" name="password" minlength="6" placeholder="Deixe em branco para manter"></label>
-          <label class="check span2 client-active-check">
+        <form class="client-edit-form" method="post" action="{{ url_for('main.admin_client_update', user_id=client.id) }}">
+          <div class="form-grid two-cols">
+            <label>Nome completo
+              <input type="text" name="name" value="{{ client.name }}" required>
+            </label>
+            <label>E-mail
+              <input type="email" name="email" value="{{ client.email }}" required>
+            </label>
+            <label>Empresa
+              <input type="text" name="company" value="{{ client.company or '' }}">
+            </label>
+            <label>WhatsApp
+              <input type="text" name="whatsapp" value="{{ client.whatsapp or '' }}">
+            </label>
+            <label>Documento
+              <input type="text" name="document" value="{{ client.document or '' }}">
+            </label>
+            <label>Nova senha
+              <input type="password" name="password" placeholder="Deixe em branco para manter">
+            </label>
+          </div>
+
+          <label class="status-toggle">
             <input type="checkbox" name="is_active_client" value="1" {% if client.is_active_client %}checked{% endif %}>
-            Cliente ativo
+            <span>
+              <strong>Cliente ativo</strong>
+              <small>Desmarque para bloquear o acesso do cliente.</small>
+            </span>
           </label>
-          <div class="span2 client-card-actions">
+
+          <div class="modal-actions">
+            <button class="btn ghost" type="button" data-close-modal>Cancelar</button>
             <button class="btn" type="submit"><i class="bi bi-check2-circle"></i> Salvar alterações</button>
           </div>
         </form>
-      </details>
-
-      <div class="client-danger-zone">
-        <form method="post" action="{{ url_for('main.toggle_client', user_id=client.id) }}">
-          <button class="btn ghost tiny" type="submit"><i class="bi bi-power"></i>{{ 'Bloquear' if client.is_active_client else 'Ativar' }}</button>
-        </form>
-        <form method="post" action="{{ url_for('main.admin_client_delete', user_id=client.id) }}" onsubmit="return confirm('Tem certeza que deseja excluir este cliente? Projetos, faturas e pagamentos relacionados também serão removidos.');">
-          <button class="btn danger tiny" type="submit"><i class="bi bi-trash3"></i> Excluir</button>
-        </form>
-      </div>
-    </article>
+      </section>
+    </div>
   {% else %}
-    <div class="card empty-state">
+    <div class="card empty-clients">
       <i class="bi bi-people"></i>
       <h2>Nenhum cliente cadastrado</h2>
-      <p class="muted">Assim que clientes se cadastrarem, eles aparecerão aqui.</p>
+      <p class="muted">Quando houver clientes, eles aparecerão nesta lista de gerenciamento.</p>
     </div>
   {% endfor %}
 </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const openButtons = document.querySelectorAll('.open-client-modal');
+    const closeModal = function (modal) {
+      modal.classList.remove('is-open');
+      modal.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('modal-open');
+    };
+
+    openButtons.forEach(function (button) {
+      button.addEventListener('click', function () {
+        const modal = document.getElementById(button.dataset.modalId);
+        if (!modal) return;
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+        document.body.classList.add('modal-open');
+        const firstInput = modal.querySelector('input');
+        if (firstInput) firstInput.focus();
+      });
+    });
+
+    document.querySelectorAll('[data-close-modal]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        const modal = button.closest('.client-modal');
+        if (modal) closeModal(modal);
+      });
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape') return;
+      document.querySelectorAll('.client-modal.is-open').forEach(closeModal);
+    });
+  });
+</script>
 {% endblock %}
