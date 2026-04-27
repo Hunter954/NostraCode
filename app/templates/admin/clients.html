@@ -1,6 +1,22 @@
-{% extends 'base.html' %}
-{% block title %}Clientes{% endblock %}
+{% extends "base.html" %}
 {% block content %}
-<div class="section-title"><div><span class="eyebrow">Admin</span><h1>Clientes</h1></div></div>
-<div class="card"><div class="table-wrap"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Empresa</th><th>Status</th><th>Projetos</th><th></th></tr></thead><tbody>{% for client in clients %}<tr><td>{{ client.name }}</td><td>{{ client.email }}</td><td>{{ client.company or '-' }}</td><td><span class="pill {{ 'ativo' if client.is_active_client else 'suspenso' }}">{{ 'ativo' if client.is_active_client else 'bloqueado' }}</span></td><td>{{ client.projects|length }}</td><td><form method="post" action="{{ url_for('main.toggle_client', user_id=client.id) }}"><button class="btn tiny">{{ 'Bloquear' if client.is_active_client else 'Ativar' }}</button></form></td></tr>{% endfor %}</tbody></table></div></div>
+<div style="margin:20px;">
+  <a href="/admin" class="btn" style="margin-bottom:20px;display:inline-block;padding:10px 16px;border-radius:10px;background:#111;color:#fff;">← Voltar</a>
+  <h1>Clientes</h1>
+  <table>
+    <tr><th>Nome</th><th>Email</th><th>Ações</th></tr>
+    {% for c in clients %}
+    <tr>
+      <form method="POST" action="/admin/clients/update/{{c.id}}">
+      <td><input name="name" value="{{c.name}}"></td>
+      <td><input name="email" value="{{c.email}}"></td>
+      <td>
+        <button type="submit">Salvar</button>
+        <a href="/admin/clients/delete/{{c.id}}" onclick="return confirm('Excluir?')">Excluir</a>
+      </td>
+      </form>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
 {% endblock %}
