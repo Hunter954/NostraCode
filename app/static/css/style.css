@@ -653,3 +653,17 @@ body::before{display:none!important}
 /* Admin clients aligned with client dashboard invoice table style */
 .clients-dashboard-card{padding:26px}.clients-card-head{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:18px}.clients-card-head h2{margin:0;letter-spacing:-.04em}.clients-dashboard-card .clients-search{width:min(420px,100%);margin-left:auto}.clients-dashboard-table table{min-width:920px}.client-name-cell.dashboard-style{display:grid;grid-template-columns:42px minmax(180px,1fr);gap:14px;align-items:center}.client-name-cell.dashboard-style strong{display:block;color:#fff}.client-name-cell.dashboard-style small{display:block;margin-top:3px;color:var(--muted);font-size:12px}.client-actions-heading{text-align:right}.client-table-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px}.client-table-actions form{display:inline-flex;margin:0}.client-table-actions .client-action{width:36px;height:36px}.clients-dashboard-table td:last-child,.clients-dashboard-table th:last-child{text-align:right}.clients-dashboard-table tbody tr:hover{background:rgba(80,32,212,.07)}
 @media(max-width:900px){.clients-card-head{align-items:flex-start;flex-direction:column}.clients-dashboard-card .clients-search{margin-left:0}.clients-dashboard-table table{min-width:0}.client-table-actions{justify-content:flex-end}.clients-dashboard-table td:last-child{text-align:right}.clients-dashboard-table td:last-child::before{text-align:left}.client-name-cell.dashboard-style{grid-template-columns:38px minmax(0,1fr)}}
+
+/* Correção: manter nome do cliente em uma linha e ações lado a lado */
+.clients-dashboard-table th:first-child,
+.clients-dashboard-table td:first-child{min-width:310px;width:34%}
+.clients-dashboard-table th:last-child,
+.clients-dashboard-table td:last-child{min-width:104px;width:104px;white-space:nowrap}
+.client-name-cell.dashboard-style{grid-template-columns:42px minmax(0,1fr)}
+.client-name-cell.dashboard-style > div{min-width:0}
+.client-name-cell.dashboard-style strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.client-name-cell.dashboard-style small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.client-table-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:nowrap;white-space:nowrap}
+.client-table-actions form{display:inline-flex;margin:0;flex:0 0 auto}
+.client-table-actions .client-action{flex:0 0 36px}
+@media(max-width:900px){.clients-dashboard-table th:first-child,.clients-dashboard-table td:first-child{min-width:260px}.client-table-actions{gap:8px}}
