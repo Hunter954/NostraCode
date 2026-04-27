@@ -58,7 +58,9 @@
   </header>
   <main class="page">
     {% if current_user.is_authenticated and request.endpoint not in ['main.index', 'main.client_dashboard', 'main.admin_dashboard'] %}
-      <button class="btn ghost page-back" type="button" data-fallback-url="{{ url_for('main.admin_dashboard' if current_user.is_admin else 'main.client_dashboard') }}" onclick="if (history.length > 1) { history.back(); } else { window.location.href = this.dataset.fallbackUrl; }"><i class="bi bi-arrow-left"></i> Voltar</button>
+      <div class="page-back-wrap">
+        <button class="btn ghost page-back" type="button" data-fallback-url="{{ url_for('main.admin_dashboard' if current_user.is_admin else 'main.client_dashboard') }}" onclick="if (history.length > 1) { history.back(); } else { window.location.href = this.dataset.fallbackUrl; }"><i class="bi bi-arrow-left"></i> Voltar</button>
+      </div>
     {% endif %}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}

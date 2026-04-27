@@ -4,7 +4,7 @@ from functools import wraps
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, current_app, send_from_directory, session
 from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db, oauth
-from .models import User, Project, Invoice, Payment, RailwayUsageSnapshot
+from .models import User, Project, Invoice, Payment, RailwayService, RailwayUsageSnapshot
 from .services.mercadopago import create_payment_preference, fetch_payment
 from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period
 from werkzeug.utils import secure_filename
@@ -402,9 +402,82 @@ def admin_clients():
 @admin_required
 def toggle_client(user_id):
     client = User.query.get_or_404(user_id)
+    if client.is_admin:
+        flash("Não é possível bloquear um administrador por esta tela.", "warning")
+        return redirect(url_for("main.admin_clients"))
     client.is_active_client = not client.is_active_client
     db.session.commit()
     flash("Status do cliente atualizado.", "success")
+    return redirect(url_for("main.admin_clients"))
+
+
+@bp.route("/admin/clients/<int:user_id>/update", methods=["POST"])
+@login_required
+@admin_required
+def admin_client_update(user_id):
+    client = User.query.get_or_404(user_id)
+    if client.is_admin:
+        flash("Administradores não podem ser editados por esta tela.", "warning")
+        return redirect(url_for("main.admin_clients"))
+
+    email = (request.form.get("email") or "").lower().strip()
+    name = (request.form.get("name") or "").strip()
+
+    if not name or not email:
+        flash("Nome e e-mail são obrigatórios.", "danger")
+        return redirect(url_for("main.admin_clients"))
+
+    existing = User.query.filter(User.email == email, User.id != client.id).first()
+    if existing:
+        flash("Este e-mail já está em uso por outro cliente.", "danger")
+        return redirect(url_for("main.admin_clients"))
+
+    client.name = name
+    client.email = email
+    client.company = (request.form.get("company") or "").strip() or None
+    client.whatsapp = (request.form.get("whatsapp") or "").strip() or None
+    client.document = (request.form.get("document") or "").strip() or None
+    client.is_active_client = bool(request.form.get("is_active_client"))
+
+    password = request.form.get("password") or ""
+    if password.strip():
+        if len(password.strip()) < 6:
+            flash("A nova senha precisa ter pelo menos 6 caracteres.", "danger")
+            return redirect(url_for("main.admin_clients"))
+        client.set_password(password.strip())
+        client.auth_provider = "email"
+
+    db.session.commit()
+    flash("Dados do cliente atualizados com sucesso.", "success")
+    return redirect(url_for("main.admin_clients"))
+
+
+@bp.route("/admin/clients/<int:user_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_client_delete(user_id):
+    client = User.query.get_or_404(user_id)
+    if client.is_admin:
+        flash("Administradores não podem ser excluídos por esta tela.", "warning")
+        return redirect(url_for("main.admin_clients"))
+
+    projects = Project.query.filter_by(client_id=client.id).all()
+    project_ids = [project.id for project in projects]
+    invoices = Invoice.query.filter_by(client_id=client.id).all()
+    invoice_ids = [invoice.id for invoice in invoices]
+
+    if invoice_ids:
+        Payment.query.filter(Payment.invoice_id.in_(invoice_ids)).delete(synchronize_session=False)
+    if project_ids:
+        Invoice.query.filter(Invoice.project_id.in_(project_ids)).delete(synchronize_session=False)
+        RailwayUsageSnapshot.query.filter(RailwayUsageSnapshot.project_id.in_(project_ids)).delete(synchronize_session=False)
+        RailwayService.query.filter(RailwayService.project_id.in_(project_ids)).delete(synchronize_session=False)
+        Project.query.filter(Project.id.in_(project_ids)).delete(synchronize_session=False)
+    Invoice.query.filter_by(client_id=client.id).delete(synchronize_session=False)
+
+    db.session.delete(client)
+    db.session.commit()
+    flash("Cliente excluído com sucesso.", "success")
     return redirect(url_for("main.admin_clients"))
 
 

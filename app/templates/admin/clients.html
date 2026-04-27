@@ -1,22 +1,67 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
+{% block title %}Clientes{% endblock %}
 {% block content %}
-<div style="margin:20px;">
-  <a href="/admin" class="btn" style="margin-bottom:20px;display:inline-block;padding:10px 16px;border-radius:10px;background:#111;color:#fff;">← Voltar</a>
-  <h1>Clientes</h1>
-  <table>
-    <tr><th>Nome</th><th>Email</th><th>Ações</th></tr>
-    {% for c in clients %}
-    <tr>
-      <form method="POST" action="/admin/clients/update/{{c.id}}">
-      <td><input name="name" value="{{c.name}}"></td>
-      <td><input name="email" value="{{c.email}}"></td>
-      <td>
-        <button type="submit">Salvar</button>
-        <a href="/admin/clients/delete/{{c.id}}" onclick="return confirm('Excluir?')">Excluir</a>
-      </td>
-      </form>
-    </tr>
-    {% endfor %}
-  </table>
+<div class="section-title admin-clients-title">
+  <div>
+    <span class="eyebrow">Admin</span>
+    <h1>Clientes</h1>
+    <p class="muted">Edite os dados, altere a senha, bloqueie ou exclua clientes cadastrados.</p>
+  </div>
+</div>
+
+<div class="admin-client-grid">
+  {% for client in clients %}
+    <article class="card admin-client-card">
+      <div class="admin-client-head">
+        <div class="admin-client-avatar">{{ (client.name or client.email or 'C')[:1]|upper }}</div>
+        <div>
+          <h2>{{ client.name }}</h2>
+          <a href="mailto:{{ client.email }}">{{ client.email }}</a>
+          <span>{{ client.company or 'Sem empresa informada' }}</span>
+        </div>
+        <span class="pill {{ 'ativo' if client.is_active_client else 'suspenso' }}">{{ 'ativo' if client.is_active_client else 'bloqueado' }}</span>
+      </div>
+
+      <div class="admin-client-meta">
+        <span><i class="bi bi-folder2-open"></i>{{ client.projects|length }} projeto{{ '' if client.projects|length == 1 else 's' }}</span>
+        <span><i class="bi bi-whatsapp"></i>{{ client.whatsapp or 'Sem WhatsApp' }}</span>
+        <span><i class="bi bi-file-earmark-text"></i>{{ client.document or 'Sem CPF/CNPJ' }}</span>
+      </div>
+
+      <details class="client-editor">
+        <summary><i class="bi bi-pencil-square"></i> Editar dados do cliente</summary>
+        <form method="post" action="{{ url_for('main.admin_client_update', user_id=client.id) }}" class="form grid two client-edit-form">
+          <label>Nome<input name="name" value="{{ client.name }}" required></label>
+          <label>E-mail<input type="email" name="email" value="{{ client.email }}" required></label>
+          <label>Empresa<input name="company" value="{{ client.company or '' }}"></label>
+          <label>WhatsApp<input name="whatsapp" value="{{ client.whatsapp or '' }}"></label>
+          <label>CPF/CNPJ<input name="document" value="{{ client.document or '' }}"></label>
+          <label>Nova senha<input type="password" name="password" minlength="6" placeholder="Deixe em branco para manter"></label>
+          <label class="check span2 client-active-check">
+            <input type="checkbox" name="is_active_client" value="1" {% if client.is_active_client %}checked{% endif %}>
+            Cliente ativo
+          </label>
+          <div class="span2 client-card-actions">
+            <button class="btn" type="submit"><i class="bi bi-check2-circle"></i> Salvar alterações</button>
+          </div>
+        </form>
+      </details>
+
+      <div class="client-danger-zone">
+        <form method="post" action="{{ url_for('main.toggle_client', user_id=client.id) }}">
+          <button class="btn ghost tiny" type="submit"><i class="bi bi-power"></i>{{ 'Bloquear' if client.is_active_client else 'Ativar' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('main.admin_client_delete', user_id=client.id) }}" onsubmit="return confirm('Tem certeza que deseja excluir este cliente? Projetos, faturas e pagamentos relacionados também serão removidos.');">
+          <button class="btn danger tiny" type="submit"><i class="bi bi-trash3"></i> Excluir</button>
+        </form>
+      </div>
+    </article>
+  {% else %}
+    <div class="card empty-state">
+      <i class="bi bi-people"></i>
+      <h2>Nenhum cliente cadastrado</h2>
+      <p class="muted">Assim que clientes se cadastrarem, eles aparecerão aqui.</p>
+    </div>
+  {% endfor %}
 </div>
 {% endblock %}
