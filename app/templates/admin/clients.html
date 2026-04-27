@@ -2,7 +2,7 @@
 {% block title %}Clientes{% endblock %}
 {% block content %}
 <section class="admin-clients-page">
-  <div class="admin-clients-hero">
+  <div class="section-title">
     <div>
       <span class="eyebrow">Administração</span>
       <h1>Clientes</h1>
@@ -14,20 +14,17 @@
     </div>
   </div>
 
-  <div class="clients-list-card">
-    <div class="clients-toolbar">
+  <div class="card clients-dashboard-card">
+    <div class="clients-card-head">
+      <h2>Lista de clientes</h2>
       <label class="clients-search" for="clientSearch">
         <i class="bi bi-search"></i>
         <input id="clientSearch" type="search" placeholder="Buscar por nome, e-mail ou empresa..." autocomplete="off">
       </label>
-      <div class="clients-toolbar-note">
-        <i class="bi bi-shield-check"></i>
-        <span>Área administrativa</span>
-      </div>
     </div>
 
-    <div class="clients-table-shell">
-      <table class="clients-table">
+    <div class="table-wrap clients-dashboard-table">
+      <table>
         <thead>
           <tr>
             <th>Cliente</th>
@@ -36,23 +33,14 @@
             <th>Status</th>
             <th>Projetos</th>
             <th>Criado em</th>
+            <th class="client-actions-heading">Ações</th>
           </tr>
         </thead>
         <tbody>
           {% for client in clients %}
           <tr class="client-row" data-client-search="{{ (client.name ~ ' ' ~ client.email ~ ' ' ~ (client.company or ''))|lower }}">
-            <td>
-              <div class="client-name-cell">
-                <div class="client-management-actions" aria-label="Gerenciar {{ client.name }}">
-                  <button class="client-action edit" type="button" data-open-client-modal="client-modal-{{ client.id }}" title="Editar cliente">
-                    <i class="bi bi-pencil-square"></i>
-                  </button>
-                  <form method="post" action="{{ url_for('main.admin_client_delete', user_id=client.id) }}" onsubmit="return confirm('Tem certeza que deseja excluir este cliente? Essa ação remove projetos, faturas e pagamentos relacionados.');">
-                    <button class="client-action delete" type="submit" title="Excluir cliente">
-                      <i class="bi bi-trash3"></i>
-                    </button>
-                  </form>
-                </div>
+            <td data-label="Cliente">
+              <div class="client-name-cell dashboard-style">
                 <span class="client-avatar">{{ (client.name or client.email or 'C')[:1]|upper }}</span>
                 <div>
                   <strong>{{ client.name }}</strong>
@@ -60,15 +48,27 @@
                 </div>
               </div>
             </td>
-            <td>{{ client.email }}</td>
-            <td>{{ client.company or '-' }}</td>
-            <td><span class="client-status {{ 'active' if client.is_active_client else 'blocked' }}">{{ 'Ativo' if client.is_active_client else 'Bloqueado' }}</span></td>
-            <td>{{ client.projects|length }}</td>
-            <td>{{ client.created_at.strftime('%d/%m/%Y') if client.created_at else '-' }}</td>
+            <td data-label="E-mail">{{ client.email }}</td>
+            <td data-label="Empresa">{{ client.company or '-' }}</td>
+            <td data-label="Status"><span class="pill {{ 'ativo' if client.is_active_client else 'suspenso' }}">{{ 'Ativo' if client.is_active_client else 'Bloqueado' }}</span></td>
+            <td data-label="Projetos">{{ client.projects|length }}</td>
+            <td data-label="Criado em">{{ client.created_at.strftime('%d/%m/%Y') if client.created_at else '-' }}</td>
+            <td data-label="Ações">
+              <div class="client-table-actions" aria-label="Gerenciar {{ client.name }}">
+                <button class="client-action edit" type="button" data-open-client-modal="client-modal-{{ client.id }}" title="Editar cliente">
+                  <i class="bi bi-pencil-square"></i>
+                </button>
+                <form method="post" action="{{ url_for('main.admin_client_delete', user_id=client.id) }}" onsubmit="return confirm('Tem certeza que deseja excluir este cliente? Essa ação remove projetos, faturas e pagamentos relacionados.');">
+                  <button class="client-action delete" type="submit" title="Excluir cliente">
+                    <i class="bi bi-trash3"></i>
+                  </button>
+                </form>
+              </div>
+            </td>
           </tr>
           {% else %}
           <tr>
-            <td colspan="6" class="clients-empty">Nenhum cliente cadastrado ainda.</td>
+            <td colspan="7" class="clients-empty">Nenhum cliente cadastrado ainda.</td>
           </tr>
           {% endfor %}
         </tbody>
