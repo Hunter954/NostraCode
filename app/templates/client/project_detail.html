@@ -5,11 +5,6 @@
   <div><span class="eyebrow">Uso do Projeto</span><h1>{{ project.name }}</h1></div>
   {% if current_user.is_admin %}
   <div class="actions">
-    {% if project.railway_project_id %}
-    <form method="post" action="{{ url_for('main.admin_project_sync_railway', project_id=project.id) }}">
-      <button class="btn"><i class="bi bi-arrow-repeat"></i> Sincronizar Railway</button>
-    </form>
-    {% endif %}
     <a class="btn ghost" href="{{ url_for('main.admin_project_edit', project_id=project.id) }}"><i class="bi bi-pencil-square"></i> Editar</a>
   </div>
   {% endif %}
@@ -33,7 +28,7 @@
   <div class="card metric">
     <small><i class="bi bi-graph-up-arrow"></i> Custo estimado</small>
     <strong>{{ project.total_forecast|brl }}</strong>
-    <span>fim do mês pela Railway</span>
+    <span>{{ billing_period }} · vence {{ billing_due_date|datebr }}</span>
   </div>
 </div>
 
@@ -89,7 +84,7 @@
     <div class="usage-summary">
       <span class="usage-currency"><i class="bi bi-currency-dollar"></i></span>
       <p>Estimativa Railway: <strong>{{ project.estimated_cost|brl }}</strong></p>
-      <small>{% if project.last_cost_update %}Atualizado em {{ project.last_cost_update.strftime('%d/%m às %H:%M') }}{% else %}Aguardando primeira sincronização{% endif %}</small>
+      <small>{{ billing_period }}{% if project.last_cost_update %} · atualizado em {{ project.last_cost_update.strftime('%d/%m às %H:%M') }}{% else %} · aguardando primeira sincronização{% endif %}</small>
     </div>
   </div>
   <div class="card">

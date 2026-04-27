@@ -1,8 +1,10 @@
 import os
+import atexit
 from datetime import date
 from decimal import Decimal
 from flask import Flask, url_for
 from datetime import datetime
+from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from .extensions import db, login_manager, oauth
 from .models import User, Project, Invoice, RailwayService, RailwayUsageSnapshot
@@ -40,6 +42,8 @@ def create_app():
 
     from .routes import bp
     app.register_blueprint(bp)
+
+    start_railway_auto_sync(app)
 
     @app.cli.command("init-db")
     def init_db_command():
@@ -79,6 +83,43 @@ def create_app():
         return url_for("static", filename=image_url)
 
     return app
+
+
+def start_railway_auto_sync(app):
+    """Start hourly Railway synchronization inside the web process."""
+    enabled = os.getenv("ENABLE_AUTO_RAILWAY_SYNC", "true").lower() not in {"0", "false", "no", "off"}
+    if not enabled:
+        return
+
+    if app.debug and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        return
+
+    interval_minutes = int(os.getenv("AUTO_RAILWAY_SYNC_INTERVAL_MINUTES", "60"))
+    scheduler = BackgroundScheduler(timezone="America/Sao_Paulo")
+
+    def run_sync():
+        with app.app_context():
+            try:
+                db.create_all()
+                ensure_schema_updates()
+                from .sync import sync_all_projects
+                total, ok, failed = sync_all_projects()
+                app.logger.info("Railway auto sync finished: %s/%s updated, %s failed", ok, total, failed)
+            except Exception as exc:
+                app.logger.exception("Railway auto sync failed: %s", exc)
+
+    scheduler.add_job(
+        run_sync,
+        "interval",
+        minutes=interval_minutes,
+        id="railway-auto-sync",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        next_run_time=datetime.now(),
+    )
+    scheduler.start()
+    atexit.register(lambda: scheduler.shutdown(wait=False))
 
 
 @login_manager.user_loader

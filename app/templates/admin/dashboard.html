@@ -7,16 +7,22 @@
     <h1>Operação</h1>
   </div>
   <div class="actions">
-    <form method="post" action="{{ url_for('main.admin_sync_all_railway') }}">
-      <button class="btn ghost"><i class="bi bi-arrow-repeat"></i> Sincronizar Railway</button>
-    </form>
     <a class="btn ghost" href="{{ url_for('main.admin_clients') }}"><i class="bi bi-people"></i> Clientes</a>
     <a class="btn" href="{{ url_for('main.admin_project_new') }}"><i class="bi bi-plus-circle"></i> Novo projeto</a>
     <a class="btn" href="{{ url_for('main.admin_invoice_new') }}"><i class="bi bi-receipt"></i> Nova fatura</a>
   </div>
 </div>
 
-<div class="grid four gap">
+<div class="card sync-status-card">
+  <div>
+    <span class="eyebrow">Railway automático</span>
+    <h2>Sincronização a cada 1 hora</h2>
+    <p>Última sincronização: <strong>{% if last_railway_sync %}{{ last_railway_sync.strftime('%d/%m/%Y às %H:%M') }}{% else %}ainda não executada{% endif %}</strong></p>
+  </div>
+  <span class="pill {{ 'atrasado' if railway_sync_errors else 'online' }}">{{ railway_sync_errors }} erro{{ 's' if railway_sync_errors != 1 else '' }}</span>
+</div>
+
+<div class="grid four gap mt">
   <div class="card metric">
     <small><i class="bi bi-people"></i> Clientes</small>
     <strong>{{ clients_count }}</strong>

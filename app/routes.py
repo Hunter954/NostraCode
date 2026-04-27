@@ -6,7 +6,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db, oauth
 from .models import User, Project, Invoice, Payment, RailwayUsageSnapshot
 from .services.mercadopago import create_payment_preference, fetch_payment
-from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects
+from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period
 from werkzeug.utils import secure_filename
 from authlib.integrations.base_client.errors import OAuthError
 import os
@@ -93,8 +93,7 @@ def healthz():
 
 @bp.route("/")
 def index():
-    if current_user.is_authenticated:
-        return redirect(url_for("main.admin_dashboard" if current_user.is_admin else "main.client_dashboard"))
+    # A logo sempre leva para a landing page, mesmo com usuário logado.
     recent_projects = Project.query.order_by(Project.created_at.desc()).limit(12).all()
     return render_template("landing.html", recent_projects=recent_projects)
 
@@ -307,7 +306,9 @@ def project_detail(project_id):
     invoices = Invoice.query.filter_by(project_id=project.id).order_by(Invoice.created_at.desc()).all()
     snapshots = RailwayUsageSnapshot.query.filter_by(project_id=project.id).order_by(RailwayUsageSnapshot.created_at.desc()).limit(8).all()
     usage_chart = build_usage_chart(snapshots, project)
-    return render_template("client/project_detail.html", project=project, invoices=invoices, snapshots=snapshots, usage_chart=usage_chart)
+    cycle_start, cycle_end = current_billing_cycle()
+    billing_period = format_billing_period(cycle_start, cycle_end)
+    return render_template("client/project_detail.html", project=project, invoices=invoices, snapshots=snapshots, usage_chart=usage_chart, billing_period=billing_period, billing_due_date=cycle_end)
 
 
 @bp.route("/invoices")
@@ -383,7 +384,9 @@ def admin_dashboard():
     paid_total = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).scalar()
     projects = Project.query.order_by(Project.created_at.desc()).limit(6).all()
     invoices = Invoice.query.order_by(Invoice.created_at.desc()).limit(6).all()
-    return render_template("admin/dashboard.html", clients_count=clients_count, projects_count=projects_count, pending_invoices=pending_invoices, paid_total=paid_total, projects=projects, invoices=invoices)
+    last_railway_sync = db.session.query(db.func.max(Project.last_sync_at)).scalar()
+    railway_sync_errors = Project.query.filter(Project.sync_status == "erro").count()
+    return render_template("admin/dashboard.html", clients_count=clients_count, projects_count=projects_count, pending_invoices=pending_invoices, paid_total=paid_total, projects=projects, invoices=invoices, last_railway_sync=last_railway_sync, railway_sync_errors=railway_sync_errors)
 
 
 @bp.route("/admin/clients")

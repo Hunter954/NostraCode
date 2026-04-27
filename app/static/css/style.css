@@ -643,3 +643,6 @@ body::before{display:none!important}
     width: min(100%, 92vw);
   }
 }
+
+.page-back{margin:0 0 22px 0}.sync-status-card{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-bottom:22px}.sync-status-card h2{margin:6px 0 8px}.sync-status-card p{margin:0;color:var(--muted)}
+@media(max-width:640px){.sync-status-card{align-items:flex-start;flex-direction:column}}

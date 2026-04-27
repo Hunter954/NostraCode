@@ -1,4 +1,5 @@
 from datetime import datetime, date, timedelta
+import calendar
 from decimal import Decimal
 from typing import Tuple
 
@@ -135,18 +136,52 @@ def sync_all_projects() -> Tuple[int, int, int]:
             failed += 1
     return len(projects), ok, failed
 
-def _current_period_label(today: date | None = None) -> str:
+RAILWAY_BILLING_DAY = 27
+INVOICE_VISIBLE_DAYS_BEFORE_DUE = 5
+
+
+def _add_months(value: date, months: int = 1) -> date:
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(value.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def _billing_anchor(year: int, month: int, day: int = RAILWAY_BILLING_DAY) -> date:
+    return date(year, month, min(day, calendar.monthrange(year, month)[1]))
+
+
+def current_billing_cycle(today: date | None = None) -> tuple[date, date]:
+    """Return the Railway billing cycle shown to clients, always day 27 -> 27."""
     today = today or date.today()
-    months = [
-        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
-    ]
-    return f"{months[today.month - 1]}/{today.year}"
+    this_month_anchor = _billing_anchor(today.year, today.month)
+    if today >= this_month_anchor:
+        start = this_month_anchor
+        end = _add_months(start, 1)
+    else:
+        end = this_month_anchor
+        start = _add_months(end, -1)
+    return start, end
+
+
+def format_billing_period(start: date, end: date) -> str:
+    return f"{start.strftime('%d/%m/%Y')} a {end.strftime('%d/%m/%Y')}"
+
+
+def should_show_invoice(due_date: date, today: date | None = None) -> bool:
+    today = today or date.today()
+    return today >= due_date - timedelta(days=INVOICE_VISIBLE_DAYS_BEFORE_DUE)
+
+
+def _current_period_label(today: date | None = None) -> str:
+    start, end = current_billing_cycle(today)
+    return format_billing_period(start, end)
 
 
 def _next_due_date(today: date | None = None) -> date:
-    today = today or date.today()
-    return today + timedelta(days=7)
+    _, end = current_billing_cycle(today)
+    return end
 
 
 def _next_invoice_number() -> str:
@@ -172,30 +207,57 @@ def clear_unpaid_project_invoices(project: Project) -> int:
 
 
 def refresh_project_invoice(project: Project, period_start=None, period_end=None) -> Invoice | None:
-    """Create/update the current open invoice from Railway values.
+    """Create/update the current Railway invoice when it is close to the billing due date.
 
-    Paid invoices are preserved as history. Open invoices for the same project are
-    replaced so the table never shows stale totals after a Railway ID/cost update.
+    The client should only see the next charge 5 days before Railway is due.
+    Paid invoices are preserved. Open invoices for the current period are updated
+    instead of recreated, so the payment amount follows the latest hourly sync.
     """
-    clear_unpaid_project_invoices(project)
+    today = date.today()
+    cycle_start, cycle_end = current_billing_cycle(today)
+    period = format_billing_period(cycle_start, cycle_end)
+    due_date = cycle_end
+
+    if not should_show_invoice(due_date, today):
+        return None
 
     amount = project.estimated_cost if project.estimated_cost is not None else project.current_cost
     amount = Decimal(amount or "0.00").quantize(Decimal("0.01"))
 
-    period_date = period_start.date() if period_start else date.today()
-    invoice = Invoice(
-        number=_next_invoice_number(),
-        client_id=project.client_id,
-        project_id=project.id,
-        period=_current_period_label(period_date),
-        railway_cost=amount,
-        management_fee=Decimal("0.00"),
-        discounts=Decimal("0.00"),
-        fines=Decimal("0.00"),
-        total=amount,
-        status="pendente",
-        due_date=_next_due_date(),
-    )
-    db.session.add(invoice)
-    return invoice
+    removable_statuses = ["pendente", "aguardando pagamento", "atrasado", "cancelado"]
+    Invoice.query.filter(
+        Invoice.project_id == project.id,
+        Invoice.status.in_(removable_statuses),
+        Invoice.period != period,
+    ).delete(synchronize_session=False)
 
+    invoice = Invoice.query.filter(
+        Invoice.project_id == project.id,
+        Invoice.status.in_(removable_statuses),
+        Invoice.period == period,
+    ).order_by(Invoice.created_at.desc()).first()
+
+    if not invoice:
+        invoice = Invoice(
+            number=_next_invoice_number(),
+            client_id=project.client_id,
+            project_id=project.id,
+            period=period,
+            status="pendente",
+            due_date=due_date,
+        )
+        db.session.add(invoice)
+
+    invoice.client_id = project.client_id
+    invoice.railway_cost = amount
+    invoice.management_fee = Decimal("0.00")
+    invoice.discounts = Decimal("0.00")
+    invoice.fines = Decimal("0.00")
+    invoice.total = amount
+    invoice.due_date = due_date
+    if invoice.status == "aguardando pagamento":
+        invoice.payment_link = None
+        invoice.mp_preference_id = None
+        invoice.mp_external_reference = None
+        invoice.status = "pendente"
+    return invoice
