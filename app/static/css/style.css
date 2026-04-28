@@ -723,3 +723,64 @@ body::before{display:none!important}
 .project-invoice-grid .table-wrap{overflow-x:auto}
 .project-invoice-grid .invoice-table{min-width:720px}
 @media(max-width:900px){.dashboard-invoice-grid,.project-invoice-grid{gap:22px}}
+
+/* Homepage animated CodeShack-style mesh background (Nostra purple/black) */
+.hero-sales.premium-hero{
+  isolation:isolate;
+  background:#050505;
+}
+.hero-sales.premium-hero::before,
+.hero-sales.premium-hero::after{
+  z-index:0;
+}
+.nostra-mesh-background{
+  position:absolute;
+  inset:-18% -10% 18%;
+  z-index:0;
+  pointer-events:none;
+  overflow:hidden;
+  background-color:#050505;
+  background-image:
+    radial-gradient(at 8% 12%, rgba(80,32,212,.78) 0, transparent 42%),
+    radial-gradient(at 92% 8%, rgba(124,58,237,.62) 0, transparent 44%),
+    radial-gradient(at 72% 74%, rgba(168,85,247,.48) 0, transparent 46%),
+    radial-gradient(at 18% 88%, rgba(35,16,92,.78) 0, transparent 48%),
+    radial-gradient(at 52% 42%, rgba(5,5,5,.90) 0, transparent 42%);
+  background-size:190% 190%;
+  animation:nostra-mesh-morph 13s ease-in-out infinite alternate;
+  filter:blur(54px) saturate(1.18);
+  opacity:.92;
+  transform:translateZ(0);
+}
+.nostra-mesh-background::before,
+.nostra-mesh-background::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+}
+.nostra-mesh-background::before{
+  background:
+    radial-gradient(circle at 50% 12%, rgba(255,255,255,.10), transparent 22%),
+    linear-gradient(180deg, rgba(5,5,5,.10) 0%, rgba(5,5,5,.50) 70%, #050505 100%);
+  mix-blend-mode:screen;
+}
+.nostra-mesh-background::after{
+  background:linear-gradient(180deg, rgba(5,5,5,.15) 0%, rgba(5,5,5,.50) 62%, #050505 100%);
+}
+@keyframes nostra-mesh-morph{
+  0%{background-position:0% 0%;transform:scale(1) rotate(0deg)}
+  25%{background-position:100% 0%;transform:scale(1.05) rotate(1deg)}
+  50%{background-position:100% 100%;transform:scale(1.08) rotate(-1deg)}
+  75%{background-position:0% 100%;transform:scale(1.04) rotate(.6deg)}
+  100%{background-position:0% 0%;transform:scale(1) rotate(0deg)}
+}
+@media(max-width:980px){
+  .nostra-mesh-background{inset:-12% -22% 22%;filter:blur(48px);opacity:.86}
+}
+@media(max-width:640px){
+  .nostra-mesh-background{inset:-8% -34% 34%;filter:blur(42px);opacity:.82;animation-duration:16s}
+}
+@media(prefers-reduced-motion:reduce){
+  .nostra-mesh-background{animation:none}
+}
