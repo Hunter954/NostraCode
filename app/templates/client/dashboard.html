@@ -1,7 +1,19 @@
 {% extends 'base.html' %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<div class="section-title"><div><span class="eyebrow">Painel do Cliente</span><h1>Olá, {{ current_user.name }}</h1></div>{% if next_invoice %}<form method="post" action="{{ url_for('main.pay_invoice', invoice_id=next_invoice.id) }}"><button class="btn">Pagar agora</button></form>{% endif %}</div>
+<div class="section-title">
+  <div><span class="eyebrow">Painel do Cliente</span><h1>Olá, {{ current_user.name }}</h1></div>
+  {% if next_invoice %}
+    <div class="actions inline-actions">
+      <a class="btn ghost" href="{{ url_for('main.invoice_detail', invoice_id=next_invoice.id) }}">Detalhes</a>
+      {% if invoice_payment_available(next_invoice) %}
+        <form method="post" action="{{ url_for('main.pay_invoice', invoice_id=next_invoice.id) }}"><button class="btn">Pagar agora</button></form>
+      {% else %}
+        <button class="btn disabled" type="button" disabled>Pagamento em {{ next_invoice.due_date|datebr }}</button>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
 <div class="grid four gap">
   <div class="card metric"><small>Projetos</small><strong>{{ projects|length }}</strong><span>Status geral</span></div>
   <div class="card metric"><small>Custo atual</small><strong>{{ total_current|brl }}</strong><span>mês vigente</span></div>

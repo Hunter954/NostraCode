@@ -6,7 +6,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db, oauth
 from .models import User, Project, Invoice, Payment, RailwayService, RailwayUsageSnapshot
 from .services.mercadopago import create_payment_preference, fetch_payment
-from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period
+from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period, invoice_payment_available
 from werkzeug.utils import secure_filename
 from authlib.integrations.base_client.errors import OAuthError
 import os
@@ -247,8 +247,8 @@ def client_dashboard():
     invoices = Invoice.query.filter_by(client_id=current_user.id).order_by(Invoice.created_at.desc()).limit(5).all()
     total_current = sum([p.current_cost or 0 for p in projects])
     total_estimated = sum([p.estimated_cost or 0 for p in projects])
-    next_invoice = Invoice.query.filter_by(client_id=current_user.id, status="pendente").order_by(Invoice.due_date.asc()).first()
-    return render_template("client/dashboard.html", projects=projects, invoices=invoices, total_current=total_current, total_estimated=total_estimated, next_invoice=next_invoice)
+    next_invoice = Invoice.query.filter(Invoice.client_id == current_user.id, Invoice.status.in_(["pendente", "aguardando pagamento", "atrasado"])).order_by(Invoice.due_date.asc()).first()
+    return render_template("client/dashboard.html", projects=projects, invoices=invoices, total_current=total_current, total_estimated=total_estimated, next_invoice=next_invoice, invoice_payment_available=invoice_payment_available)
 
 
 def build_usage_chart(snapshots, project):
@@ -318,7 +318,7 @@ def invoices():
     if not current_user.is_admin:
         query = query.filter_by(client_id=current_user.id)
     invoices = query.order_by(Invoice.created_at.desc()).all()
-    return render_template("client/invoices.html", invoices=invoices)
+    return render_template("client/invoices.html", invoices=invoices, invoice_payment_available=invoice_payment_available)
 
 
 @bp.route("/invoices/<int:invoice_id>")
@@ -327,7 +327,7 @@ def invoice_detail(invoice_id):
     invoice = Invoice.query.get_or_404(invoice_id)
     if not current_user.is_admin and invoice.client_id != current_user.id:
         abort(403)
-    return render_template("client/invoice_detail.html", invoice=invoice)
+    return render_template("client/invoice_detail.html", invoice=invoice, can_pay=invoice_payment_available(invoice))
 
 
 @bp.route("/invoices/<int:invoice_id>/pay", methods=["POST"])
@@ -336,6 +336,9 @@ def pay_invoice(invoice_id):
     invoice = Invoice.query.get_or_404(invoice_id)
     if not current_user.is_admin and invoice.client_id != current_user.id:
         abort(403)
+    if not invoice_payment_available(invoice):
+        flash("O pagamento desta fatura sera liberado somente na data de vencimento.", "warning")
+        return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
     preference = create_payment_preference(invoice)
     invoice.payment_link = preference["payment_link"]
     invoice.mp_preference_id = preference["preference_id"]

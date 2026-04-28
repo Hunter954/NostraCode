@@ -8,7 +8,7 @@
         <th>Total</th>
         <th>Status</th>
         <th>Vencimento</th>
-        <th></th>
+        <th>Ações</th>
       </tr>
     </thead>
     <tbody>
@@ -20,7 +20,16 @@
         <td data-label="Total">{{ invoice.total|brl }}</td>
         <td data-label="Status"><span class="pill {{ invoice.status|replace(' ', '-') }}">{{ invoice.status }}</span></td>
         <td data-label="Vencimento">{{ invoice.due_date|datebr }}</td>
-        <td data-label="Ação"><a href="{{ url_for('main.invoice_detail', invoice_id=invoice.id) }}">Detalhes</a></td>
+        <td data-label="Ações">
+          <div class="table-actions">
+            <a class="action-link" href="{{ url_for('main.invoice_detail', invoice_id=invoice.id) }}">Detalhes</a>
+            {% if invoice_payment_available is defined and invoice_payment_available(invoice) %}
+              <form method="post" action="{{ url_for('main.pay_invoice', invoice_id=invoice.id) }}"><button class="link-button" type="submit">Pagamento</button></form>
+            {% elif invoice.status != 'pago' %}
+              <span class="muted-action">Pagamento em {{ invoice.due_date|datebr }}</span>
+            {% endif %}
+          </div>
+        </td>
       </tr>
       {% else %}
       <tr>

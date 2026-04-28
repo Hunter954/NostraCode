@@ -1,7 +1,19 @@
 {% extends 'base.html' %}
 {% block title %}Fatura #{{ invoice.number }}{% endblock %}
 {% block content %}
-<div class="section-title"><div><span class="eyebrow">Fatura #{{ invoice.number }}</span><h1>{{ invoice.project.name }}</h1></div>{% if invoice.status != 'pago' %}<form method="post" action="{{ url_for('main.pay_invoice', invoice_id=invoice.id) }}"><button class="btn">Pagar agora</button></form>{% endif %}</div>
+<div class="section-title">
+  <div><span class="eyebrow">Fatura #{{ invoice.number }}</span><h1>{{ invoice.project.name }}</h1></div>
+  {% if invoice.status != 'pago' %}
+    {% if can_pay %}
+      <form method="post" action="{{ url_for('main.pay_invoice', invoice_id=invoice.id) }}"><button class="btn">Pagar agora</button></form>
+    {% else %}
+      <button class="btn disabled" type="button" disabled>Pagamento em {{ invoice.due_date|datebr }}</button>
+    {% endif %}
+  {% endif %}
+</div>
+{% if invoice.status != 'pago' and not can_pay %}
+<div class="card soft-alert"><strong>Fatura disponível para conferência.</strong><p>O pagamento será liberado automaticamente na data de vencimento.</p></div>
+{% endif %}
 <div class="grid two gap">
   <div class="card"><h2>Resumo</h2><div class="kv"><span>Cliente</span><b>{{ invoice.client.name }}</b><span>Projeto</span><b>{{ invoice.project.name }}</b><span>Período</span><b>{{ invoice.period }}</b><span>Status</span><b><span class="pill {{ invoice.status|replace(' ', '-') }}">{{ invoice.status }}</span></b><span>Vencimento</span><b>{{ invoice.due_date|datebr }}</b></div></div>
   <div class="card"><h2>Valores</h2><div class="kv"><span>Custo Railway</span><b>{{ invoice.railway_cost|brl }}</b><span>Descontos</span><b>{{ invoice.discounts|brl }}</b><span>Multa/Juros</span><b>{{ invoice.fines|brl }}</b><span>Total</span><b class="total">{{ invoice.total|brl }}</b></div></div>
