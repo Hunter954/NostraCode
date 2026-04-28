@@ -6,7 +6,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db, oauth
 from .models import User, Project, Invoice, Payment, RailwayService, RailwayUsageSnapshot
 from .services.mercadopago import create_payment_preference, fetch_payment
-from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period, invoice_payment_available, invoice_payable_date, refresh_invoice_status, brazil_now, brazil_today, _add_months, RAILWAY_BILLING_DAY, INVOICE_DAYS_BEFORE_BILLING_DAY
+from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period, invoice_payment_available, invoice_payable_date, refresh_invoice_status, brazil_now, brazil_today, _add_months, RAILWAY_BILLING_DAY, INVOICE_DAYS_BEFORE_BILLING_DAY, invoice_is_future_cycle
 from werkzeug.utils import secure_filename
 from authlib.integrations.base_client.errors import OAuthError
 import os
@@ -389,8 +389,7 @@ def build_upcoming_invoices(projects):
 @login_required
 def client_dashboard():
     projects = Project.query.filter_by(client_id=current_user.id).all()
-    invoices = Invoice.query.filter_by(client_id=current_user.id).order_by(Invoice.created_at.desc()).limit(5).all()
-    refresh_invoice_collection(invoices)
+    invoices = visible_recent_invoices(Invoice.query.filter_by(client_id=current_user.id), limit=5)
     total_current = sum([p.current_cost or 0 for p in projects])
     total_estimated = sum([p.estimated_cost or 0 for p in projects])
     open_invoices = Invoice.query.filter(Invoice.client_id == current_user.id, Invoice.status.in_(["pendente", "aguardando pagamento", "atrasado"])).all()
@@ -558,11 +557,11 @@ def admin_dashboard():
     pending_invoices = Invoice.query.filter(Invoice.status.in_(["pendente", "aguardando pagamento", "atrasado"])).count()
     paid_total = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).scalar()
     projects = Project.query.order_by(Project.created_at.desc()).limit(6).all()
-    invoices = Invoice.query.order_by(Invoice.created_at.desc()).limit(6).all()
-    refresh_invoice_collection(invoices)
+    invoices = visible_recent_invoices(Invoice.query, limit=6)
+    upcoming_invoices = build_upcoming_invoices(Project.query.order_by(Project.created_at.desc()).all())
     last_railway_sync = db.session.query(db.func.max(Project.last_sync_at)).scalar()
     railway_sync_errors = Project.query.filter(Project.sync_status == "erro").count()
-    return render_template("admin/dashboard.html", clients_count=clients_count, projects_count=projects_count, pending_invoices=pending_invoices, paid_total=paid_total, projects=projects, invoices=invoices, last_railway_sync=last_railway_sync, railway_sync_errors=railway_sync_errors, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date)
+    return render_template("admin/dashboard.html", clients_count=clients_count, projects_count=projects_count, pending_invoices=pending_invoices, paid_total=paid_total, projects=projects, invoices=invoices, upcoming_invoices=upcoming_invoices, last_railway_sync=last_railway_sync, railway_sync_errors=railway_sync_errors, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date)
 
 
 @bp.route("/admin/clients")

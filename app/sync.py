@@ -189,6 +189,15 @@ def format_billing_period(start: date, end: date) -> str:
     return start.strftime("%d/%m/%Y") + " a " + end.strftime("%d/%m/%Y")
 
 
+def format_invoice_month_label(anchor: date) -> str:
+    months = [
+        "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+    ]
+    return f"{months[anchor.month - 1]}/{anchor.year}"
+
+
+
 def should_show_invoice(due_date: date, today: date | None = None) -> bool:
     today = today or brazil_today()
     return today >= due_date - timedelta(days=INVOICE_VISIBLE_DAYS_BEFORE_DUE)
@@ -217,6 +226,38 @@ def _invoice_billing_anchor(invoice: Invoice) -> date:
     base = invoice.due_date or brazil_today()
     return _billing_anchor(base.year, base.month)
 
+
+
+
+def invoice_period_dates(invoice: Invoice) -> tuple[date | None, date | None]:
+    """Return explicit start/end dates when invoice.period uses dd/mm/yyyy ranges."""
+    period = (invoice.period or "").strip().lower()
+    dates = re.findall(r"(\d{1,2})/(\d{1,2})/(\d{4})", period)
+    if len(dates) >= 2:
+        start_day, start_month, start_year = map(int, dates[0])
+        end_day, end_month, end_year = map(int, dates[-1])
+        return date(start_year, start_month, start_day), date(end_year, end_month, end_day)
+    return None, None
+
+
+def invoice_is_future_cycle(invoice: Invoice, today: date | None = None) -> bool:
+    """Keep future/preview Railway cycles out of recent invoice lists.
+
+    Real payable invoices in this app use month labels (ex.: Abril/2026). A
+    date-range invoice that starts on the active Railway cycle, or an open
+    date-range invoice that ends exactly as the active cycle starts, is a
+    generated preview and belongs only in Próximas faturas.
+    """
+    today = today or brazil_today()
+    start, end = invoice_period_dates(invoice)
+    if not start or not end:
+        return False
+    current_start, current_end = current_billing_cycle(today)
+    if start >= current_start:
+        return True
+    if invoice.status != "pago" and end == current_start:
+        return True
+    return False
 
 def invoice_payable_date(invoice: Invoice) -> date:
     """Return the first day the client is allowed to pay this invoice.
@@ -286,10 +327,13 @@ def refresh_project_invoice(project: Project, period_start=None, period_end=None
     """
     today = brazil_today()
     cycle_start, cycle_end = invoice_billing_cycle(today)
-    period = format_billing_period(cycle_start, cycle_end)
+    period = format_invoice_month_label(cycle_end)
     due_date = cycle_end - timedelta(days=INVOICE_DAYS_BEFORE_BILLING_DAY)
 
-    if not should_show_invoice(due_date, today):
+    # A cobrança real do ciclo fica aberta apenas entre D-5 e o fechamento (dia 27).
+    # Depois do dia 27, o próximo ciclo aparece somente como prévia em Próximas faturas
+    # para evitar duplicar faturas já fechadas/pagas no painel.
+    if not should_show_invoice(due_date, today) or today >= cycle_end:
         return None
 
     amount = project.estimated_cost if project.estimated_cost is not None else project.current_cost

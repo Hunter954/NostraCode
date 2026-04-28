@@ -693,12 +693,12 @@ body::before{display:none!important}
 @media(max-width:900px){.invoice-table{min-width:0}.invoice-table th,.invoice-table td{white-space:normal}.invoice-icon-actions{justify-content:flex-start}.invoice-pay-lock::after,.disabled-pay-wrap::after{left:0;transform:translateY(4px);white-space:normal;min-width:180px}.invoice-pay-lock::before,.disabled-pay-wrap::before{left:18px}.invoice-pay-lock:hover::after,.disabled-pay-wrap:hover::after{transform:translateY(0)}}
 
 /* Dashboard invoice layout refinements */
-.dashboard-invoice-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
-.dashboard-invoice-grid .card{min-width:0}
+.dashboard-invoice-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:28px}
+.dashboard-invoice-grid .card{min-width:0;padding:26px}
 .upcoming-invoice-table{min-width:620px}
 
 /* Admin dashboard: give invoice table more horizontal room so text stays on one line */
-.admin-overview-grid{grid-template-columns:minmax(280px,.9fr) minmax(620px,1.25fr)}
+.admin-overview-grid{grid-template-columns:minmax(280px,.78fr) minmax(680px,1.35fr)}
 .admin-overview-grid .card{min-width:0}
 .admin-projects-card .admin-project-item span{min-width:0}
 .admin-projects-card .admin-project-item b,
@@ -707,5 +707,12 @@ body::before{display:none!important}
 .admin-invoices-card .invoice-table td[data-label="Projeto"],
 .admin-invoices-card .invoice-table td[data-label="Período"]{white-space:nowrap;min-width:0}
 .admin-invoices-card .table-wrap{overflow-x:auto}
+.admin-invoice-column{display:grid;gap:24px;min-width:0}
+.admin-upcoming-invoices-card{min-width:0}
+.admin-upcoming-invoices-card .table-wrap{overflow-x:auto}
+.admin-upcoming-invoices-card .invoice-table{min-width:760px}
+.admin-upcoming-invoices-card .invoice-table td[data-label="Cliente"],
+.admin-upcoming-invoices-card .invoice-table td[data-label="Projeto"],
+.admin-upcoming-invoices-card .invoice-table td[data-label="Período"]{white-space:nowrap}
 @media(max-width:1100px){.admin-overview-grid{grid-template-columns:1fr}.admin-invoices-card .invoice-table{min-width:760px}}
 @media(min-width:1101px){.admin-overview-grid{align-items:start}.admin-projects-card{max-width:100%}}
