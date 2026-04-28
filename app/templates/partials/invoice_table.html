@@ -7,7 +7,7 @@
         <th>Período</th>
         <th>Total</th>
         <th>Status</th>
-        <th>Vencimento</th>
+        <th>Pagável a partir de</th>
         <th>Ações</th>
       </tr>
     </thead>
@@ -19,14 +19,16 @@
         <td data-label="Período">{{ invoice.period }}</td>
         <td data-label="Total">{{ invoice.total|brl }}</td>
         <td data-label="Status"><span class="pill {{ invoice.status|replace(' ', '-') }}">{{ invoice.status }}</span></td>
-        <td data-label="Vencimento">{{ invoice.due_date|datebr }}</td>
+        <td data-label="Pagável a partir de">{{ invoice_payable_date(invoice)|datebr if invoice_payable_date is defined else invoice.due_date|datebr }}</td>
         <td data-label="Ações">
-          <div class="table-actions">
-            <a class="action-link" href="{{ url_for('main.invoice_detail', invoice_id=invoice.id) }}">Detalhes</a>
-            {% if invoice_payment_available is defined and invoice_payment_available(invoice) %}
-              <form method="post" action="{{ url_for('main.pay_invoice', invoice_id=invoice.id) }}"><button class="link-button" type="submit">Pagamento</button></form>
-            {% elif invoice.status != 'pago' %}
-              <span class="muted-action">Pagamento em {{ invoice.due_date|datebr }}</span>
+          <div class="client-table-actions invoice-icon-actions">
+            <a class="client-action" href="{{ url_for('main.invoice_detail', invoice_id=invoice.id) }}" title="Detalhes" aria-label="Detalhes da fatura"><i class="bi bi-eye"></i></a>
+            {% if invoice.status == 'pago' %}
+              <a class="client-action" href="{{ url_for('main.invoice_receipt', invoice_id=invoice.id) }}" title="Baixar recibo" aria-label="Baixar recibo"><i class="bi bi-file-earmark-pdf"></i></a>
+            {% elif invoice_payment_available is defined and invoice_payment_available(invoice) %}
+              <form method="post" action="{{ url_for('main.pay_invoice', invoice_id=invoice.id) }}"><button class="client-action" type="submit" title="Pagar" aria-label="Pagar fatura"><i class="bi bi-credit-card"></i></button></form>
+            {% else %}
+              <span class="invoice-pay-lock"><button class="client-action disabled" type="button" disabled title="Pagamento indisponível" aria-label="Pagamento indisponível"><i class="bi bi-lock"></i></button><small>Pagável a partir de {{ invoice_payable_date(invoice)|datebr if invoice_payable_date is defined else invoice.due_date|datebr }}</small></span>
             {% endif %}
           </div>
         </td>

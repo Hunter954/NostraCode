@@ -137,6 +137,7 @@ def sync_all_projects() -> Tuple[int, int, int]:
     return len(projects), ok, failed
 
 RAILWAY_BILLING_DAY = 27
+INVOICE_DAYS_BEFORE_BILLING_DAY = 5
 INVOICE_VISIBLE_DAYS_BEFORE_DUE = 5
 OPEN_INVOICE_STATUSES = ["pendente", "aguardando pagamento", "atrasado", "cancelado"]
 
@@ -183,10 +184,28 @@ def should_show_invoice(due_date: date, today: date | None = None) -> bool:
     return today >= due_date - timedelta(days=INVOICE_VISIBLE_DAYS_BEFORE_DUE)
 
 
-def invoice_payment_available(invoice: Invoice, today: date | None = None) -> bool:
-    """Allow checkout only on/after the monthly lock date."""
+def invoice_payable_date(invoice: Invoice) -> date:
+    """Return the first day the client is allowed to pay this invoice."""
+    return invoice.due_date
+
+
+def refresh_invoice_status(invoice: Invoice, today: date | None = None) -> Invoice:
+    """Keep open invoice status aligned with the configured payment date."""
     today = today or date.today()
-    return invoice.status != "pago" and invoice.due_date <= today
+    if invoice.status == "pago":
+        return invoice
+    if today > invoice_payable_date(invoice):
+        invoice.status = "atrasado"
+    elif invoice.status == "atrasado":
+        invoice.status = "pendente"
+    return invoice
+
+
+def invoice_payment_available(invoice: Invoice, today: date | None = None) -> bool:
+    """Allow checkout on/after the configured payment date."""
+    today = today or date.today()
+    refresh_invoice_status(invoice, today)
+    return invoice.status != "pago" and invoice_payable_date(invoice) <= today
 
 
 def _current_period_label(today: date | None = None) -> str:
@@ -196,7 +215,7 @@ def _current_period_label(today: date | None = None) -> str:
 
 def _next_due_date(today: date | None = None) -> date:
     _, end = invoice_billing_cycle(today)
-    return end
+    return end - timedelta(days=INVOICE_DAYS_BEFORE_BILLING_DAY)
 
 
 def _next_invoice_number() -> str:
@@ -219,17 +238,16 @@ def clear_unpaid_project_invoices(project: Project) -> int:
     return len(invoices)
 
 def refresh_project_invoice(project: Project, period_start=None, period_end=None) -> Invoice | None:
-    """Create/update the monthly Railway invoice and lock it on day 27.
+    """Create/update the monthly Railway invoice.
 
-    The invoice can be previewed shortly before the 27th, but payment is only
-    enabled on/after the due date. Once the due date arrives, the amount is no
-    longer overwritten by later syncs, keeping the closed month frozen while
-    Railway starts accumulating the next cycle.
+    The Railway cycle closes on day 27, but the client payment date is always
+    five days before that close date. After that payment date, the invoice can
+    be paid; after the date passes, it is marked as overdue.
     """
     today = date.today()
     cycle_start, cycle_end = invoice_billing_cycle(today)
     period = format_billing_period(cycle_start, cycle_end)
-    due_date = cycle_end
+    due_date = cycle_end - timedelta(days=INVOICE_DAYS_BEFORE_BILLING_DAY)
 
     if not should_show_invoice(due_date, today):
         return None
@@ -274,6 +292,8 @@ def refresh_project_invoice(project: Project, period_start=None, period_end=None
 
     if today >= due_date:
         project.previous_month_cost = invoice.total or amount
+
+    refresh_invoice_status(invoice, today)
 
     if invoice.status == "aguardando pagamento" and today < due_date:
         invoice.payment_link = None

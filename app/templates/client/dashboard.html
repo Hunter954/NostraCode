@@ -9,7 +9,8 @@
       {% if invoice_payment_available(next_invoice) %}
         <form method="post" action="{{ url_for('main.pay_invoice', invoice_id=next_invoice.id) }}"><button class="btn">Pagar agora</button></form>
       {% else %}
-        <button class="btn disabled" type="button" disabled>Pagamento em {{ next_invoice.due_date|datebr }}</button>
+        <button class="btn disabled" type="button" disabled>Pagar</button>
+        <span class="muted-action">Pagável a partir de {{ invoice_payable_date(next_invoice)|datebr }}</span>
       {% endif %}
     </div>
   {% endif %}

@@ -1,16 +1,17 @@
 from datetime import datetime, date
 from decimal import Decimal
 from functools import wraps
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, current_app, send_from_directory, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, current_app, send_from_directory, send_file, session
 from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db, oauth
 from .models import User, Project, Invoice, Payment, RailwayService, RailwayUsageSnapshot
 from .services.mercadopago import create_payment_preference, fetch_payment
-from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period, invoice_payment_available
+from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period, invoice_payment_available, invoice_payable_date, refresh_invoice_status
 from werkzeug.utils import secure_filename
 from authlib.integrations.base_client.errors import OAuthError
 import os
 import secrets
+from io import BytesIO
 
 bp = Blueprint("main", __name__)
 
@@ -76,6 +77,124 @@ def save_project_image(file_storage):
     unique_name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}-{filename}"
     file_storage.save(os.path.join(upload_dir, unique_name))
     return f"/uploads/projects/{unique_name}"
+
+
+
+
+def refresh_invoice_collection(invoices):
+    changed = False
+    for invoice in invoices:
+        old_status = invoice.status
+        refresh_invoice_status(invoice)
+        if invoice.status != old_status:
+            changed = True
+    if changed:
+        db.session.commit()
+
+
+def format_brl_plain(value):
+    value = Decimal(value or "0.00")
+    return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def build_receipt_pdf(invoice, payment):
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas
+
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    margin = 22 * mm
+    y = height - margin
+
+    logo_path = os.path.join(current_app.root_path, "static", "img", "logomarca-nostracodes-preta.png")
+    if os.path.exists(logo_path):
+        pdf.drawImage(logo_path, margin, y - 18 * mm, width=58 * mm, height=20 * mm, preserveAspectRatio=True, mask="auto")
+    else:
+        pdf.setFillColor(colors.black)
+        pdf.setFont("Helvetica-Bold", 22)
+        pdf.drawString(margin, y - 10 * mm, "Nostra Codes")
+
+    pdf.setFillColor(colors.black)
+    pdf.setFont("Helvetica-Bold", 18)
+    pdf.drawRightString(width - margin, y - 4 * mm, "RECIBO DE PAGAMENTO")
+    pdf.setFont("Helvetica", 10)
+    pdf.drawRightString(width - margin, y - 11 * mm, f"Fatura #{invoice.number}")
+    pdf.drawRightString(width - margin, y - 17 * mm, f"Emitido em {datetime.utcnow().strftime('%d/%m/%Y')}")
+
+    y -= 35 * mm
+    pdf.setStrokeColor(colors.black)
+    pdf.setLineWidth(1)
+    pdf.line(margin, y, width - margin, y)
+    y -= 12 * mm
+
+    def label_value(label, value, x, y_pos):
+        pdf.setFont("Helvetica-Bold", 9)
+        pdf.drawString(x, y_pos, label.upper())
+        pdf.setFont("Helvetica", 11)
+        pdf.drawString(x, y_pos - 6 * mm, str(value or "-"))
+
+    left = margin
+    right = width / 2 + 6 * mm
+    label_value("Cliente", invoice.client.name, left, y)
+    label_value("E-mail", invoice.client.email, right, y)
+    y -= 18 * mm
+    label_value("Empresa", invoice.client.company or "-", left, y)
+    label_value("Documento", invoice.client.document or "-", right, y)
+    y -= 20 * mm
+
+    pdf.setFont("Helvetica-Bold", 13)
+    pdf.drawString(margin, y, "Serviço pago")
+    y -= 8 * mm
+    label_value("Projeto", invoice.project.name, left, y)
+    label_value("Período", invoice.period, right, y)
+    y -= 18 * mm
+    label_value("Descrição", f"Serviço Nostra Codes / infraestrutura Railway - {invoice.project.name}", left, y)
+    label_value("Data de pagamento", payment.paid_at.strftime("%d/%m/%Y %H:%M") if payment and payment.paid_at else "-", right, y)
+    y -= 24 * mm
+
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(margin, y, "Resumo de valores")
+    y -= 8 * mm
+
+    rows = [
+        ("Custo Railway", invoice.railway_cost),
+        ("Taxa de gestão", invoice.management_fee),
+        ("Descontos", -Decimal(invoice.discounts or "0.00")),
+        ("Multa/Juros", invoice.fines),
+        ("Total pago", payment.amount if payment else invoice.total),
+    ]
+
+    table_x = margin
+    table_w = width - (2 * margin)
+    row_h = 10 * mm
+    pdf.setStrokeColor(colors.black)
+    for index, (name, amount) in enumerate(rows):
+        if index == len(rows) - 1:
+            pdf.setFont("Helvetica-Bold", 12)
+            pdf.setLineWidth(1.2)
+        else:
+            pdf.setFont("Helvetica", 11)
+            pdf.setLineWidth(.5)
+        pdf.rect(table_x, y - row_h, table_w, row_h, stroke=1, fill=0)
+        pdf.drawString(table_x + 4 * mm, y - 6.5 * mm, name)
+        pdf.drawRightString(table_x + table_w - 4 * mm, y - 6.5 * mm, format_brl_plain(amount))
+        y -= row_h
+
+    y -= 14 * mm
+    label_value("Método", payment.method if payment else "-", left, y)
+    label_value("Código da transação", payment.transaction_code if payment else "-", right, y)
+
+    pdf.setFont("Helvetica", 9)
+    pdf.drawString(margin, 24 * mm, "Nostra Codes")
+    pdf.drawRightString(width - margin, 24 * mm, "Recibo gerado automaticamente pelo painel do cliente.")
+
+    pdf.showPage()
+    pdf.save()
+    buffer.seek(0)
+    return buffer
 
 
 @bp.route("/uploads/projects/<path:filename>")
@@ -245,10 +364,13 @@ def logout():
 def client_dashboard():
     projects = Project.query.filter_by(client_id=current_user.id).all()
     invoices = Invoice.query.filter_by(client_id=current_user.id).order_by(Invoice.created_at.desc()).limit(5).all()
+    refresh_invoice_collection(invoices)
     total_current = sum([p.current_cost or 0 for p in projects])
     total_estimated = sum([p.estimated_cost or 0 for p in projects])
     next_invoice = Invoice.query.filter(Invoice.client_id == current_user.id, Invoice.status.in_(["pendente", "aguardando pagamento", "atrasado"])).order_by(Invoice.due_date.asc()).first()
-    return render_template("client/dashboard.html", projects=projects, invoices=invoices, total_current=total_current, total_estimated=total_estimated, next_invoice=next_invoice, invoice_payment_available=invoice_payment_available)
+    if next_invoice:
+        refresh_invoice_collection([next_invoice])
+    return render_template("client/dashboard.html", projects=projects, invoices=invoices, total_current=total_current, total_estimated=total_estimated, next_invoice=next_invoice, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date)
 
 
 def build_usage_chart(snapshots, project):
@@ -308,7 +430,8 @@ def project_detail(project_id):
     usage_chart = build_usage_chart(snapshots, project)
     cycle_start, cycle_end = current_billing_cycle()
     billing_period = format_billing_period(cycle_start, cycle_end)
-    return render_template("client/project_detail.html", project=project, invoices=invoices, snapshots=snapshots, usage_chart=usage_chart, billing_period=billing_period, billing_due_date=cycle_end)
+    refresh_invoice_collection(invoices)
+    return render_template("client/project_detail.html", project=project, invoices=invoices, snapshots=snapshots, usage_chart=usage_chart, billing_period=billing_period, billing_due_date=cycle_end, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date)
 
 
 @bp.route("/invoices")
@@ -318,7 +441,8 @@ def invoices():
     if not current_user.is_admin:
         query = query.filter_by(client_id=current_user.id)
     invoices = query.order_by(Invoice.created_at.desc()).all()
-    return render_template("client/invoices.html", invoices=invoices, invoice_payment_available=invoice_payment_available)
+    refresh_invoice_collection(invoices)
+    return render_template("client/invoices.html", invoices=invoices, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date)
 
 
 @bp.route("/invoices/<int:invoice_id>")
@@ -327,7 +451,29 @@ def invoice_detail(invoice_id):
     invoice = Invoice.query.get_or_404(invoice_id)
     if not current_user.is_admin and invoice.client_id != current_user.id:
         abort(403)
-    return render_template("client/invoice_detail.html", invoice=invoice, can_pay=invoice_payment_available(invoice))
+    refresh_invoice_collection([invoice])
+    return render_template("client/invoice_detail.html", invoice=invoice, can_pay=invoice_payment_available(invoice), payable_date=invoice_payable_date(invoice))
+
+
+
+
+@bp.route("/invoices/<int:invoice_id>/receipt")
+@login_required
+def invoice_receipt(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    if not current_user.is_admin and invoice.client_id != current_user.id:
+        abort(403)
+    if invoice.status != "pago":
+        flash("O recibo só fica disponível depois que a fatura é paga.", "warning")
+        return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
+    payment = Payment.query.filter_by(invoice_id=invoice.id).order_by(Payment.paid_at.desc()).first()
+    pdf_file = build_receipt_pdf(invoice, payment)
+    return send_file(
+        pdf_file,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"recibo-fatura-{invoice.number}.pdf",
+    )
 
 
 @bp.route("/invoices/<int:invoice_id>/pay", methods=["POST"])
@@ -337,7 +483,7 @@ def pay_invoice(invoice_id):
     if not current_user.is_admin and invoice.client_id != current_user.id:
         abort(403)
     if not invoice_payment_available(invoice):
-        flash("O pagamento desta fatura sera liberado somente na data de vencimento.", "warning")
+        flash(f"O pagamento desta fatura será liberado em {invoice_payable_date(invoice).strftime('%d/%m/%Y')}.", "warning")
         return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
     preference = create_payment_preference(invoice)
     invoice.payment_link = preference["payment_link"]
@@ -387,9 +533,10 @@ def admin_dashboard():
     paid_total = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).scalar()
     projects = Project.query.order_by(Project.created_at.desc()).limit(6).all()
     invoices = Invoice.query.order_by(Invoice.created_at.desc()).limit(6).all()
+    refresh_invoice_collection(invoices)
     last_railway_sync = db.session.query(db.func.max(Project.last_sync_at)).scalar()
     railway_sync_errors = Project.query.filter(Project.sync_status == "erro").count()
-    return render_template("admin/dashboard.html", clients_count=clients_count, projects_count=projects_count, pending_invoices=pending_invoices, paid_total=paid_total, projects=projects, invoices=invoices, last_railway_sync=last_railway_sync, railway_sync_errors=railway_sync_errors)
+    return render_template("admin/dashboard.html", clients_count=clients_count, projects_count=projects_count, pending_invoices=pending_invoices, paid_total=paid_total, projects=projects, invoices=invoices, last_railway_sync=last_railway_sync, railway_sync_errors=railway_sync_errors, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date)
 
 
 @bp.route("/admin/clients")
