@@ -5,7 +5,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db, oauth
 from .models import User, Project, Invoice, Payment, ProjectSubscription, RailwayService, RailwayUsageSnapshot
-from .services.mercadopago import create_checkout_preference, create_subscription_preference, checkout_redirect_url, fetch_payment, refund_payment, invoice_external_reference, mercadopago_configured
+from .services.mercadopago import create_checkout_preference, create_subscription_preference, checkout_redirect_url, fetch_payment, refund_payment, invoice_external_reference, mercadopago_configured, search_payment_by_external_reference, mercadopago_environment, MercadoPagoPaymentError, mercadopago_error_debug
 from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period, invoice_payment_available, invoice_payable_date, refresh_invoice_status, brazil_now, brazil_today, _add_months, RAILWAY_BILLING_DAY, INVOICE_DAYS_BEFORE_BILLING_DAY, invoice_is_future_cycle
 from werkzeug.utils import secure_filename
 from authlib.integrations.base_client.errors import OAuthError
@@ -714,6 +714,50 @@ def pay_invoice(invoice_id):
     return redirect(url_for("main.invoice_checkout", invoice_id=invoice.id))
 
 
+
+def register_approved_mp_invoice_payment(invoice, payment_data):
+    payment_id = str(payment_data.get("id") or "").strip()
+    if not payment_id:
+        return False
+    invoice.status = "pago"
+    invoice.mp_external_reference = payment_data.get("external_reference") or invoice.mp_external_reference or invoice_external_reference(invoice)
+    exists = Payment.query.filter_by(transaction_code=payment_id).first()
+    if not exists:
+        db.session.add(Payment(
+            invoice_id=invoice.id,
+            amount=Decimal(str(payment_data.get("transaction_amount", invoice.total))),
+            status="pago",
+            method=payment_data.get("payment_method_id") or payment_data.get("payment_type_id"),
+            transaction_code=payment_id,
+            receipt_url=(payment_data.get("transaction_details") or {}).get("external_resource_url"),
+            paid_at=brazil_now(),
+        ))
+    return True
+
+
+def resolve_invoice_mp_payment(invoice, local_payment=None):
+    candidate = str((local_payment.transaction_code if local_payment else "") or "").strip()
+    if candidate and candidate.isdigit():
+        return candidate, fetch_payment(candidate)
+
+    external_reference = invoice.mp_external_reference or invoice_external_reference(invoice)
+    payment_data = search_payment_by_external_reference(external_reference)
+    if not payment_data:
+        raise RuntimeError(
+            "Não encontrei o payment_id real no Mercado Pago para esta fatura. "
+            "Pague uma nova fatura pelo Checkout Pro ou aguarde o webhook registrar o pagamento."
+        )
+
+    payment_id = str(payment_data.get("id") or "").strip()
+    if not payment_id:
+        raise RuntimeError("Mercado Pago retornou pagamento sem ID para esta fatura.")
+    if local_payment and local_payment.transaction_code != payment_id:
+        local_payment.transaction_code = payment_id
+        local_payment.method = local_payment.method or payment_data.get("payment_method_id")
+        local_payment.receipt_url = local_payment.receipt_url or (payment_data.get("transaction_details") or {}).get("external_resource_url")
+    return payment_id, payment_data
+
+
 @bp.route("/invoices/<int:invoice_id>/checkout")
 @login_required
 def invoice_checkout(invoice_id):
@@ -740,6 +784,7 @@ def invoice_checkout(invoice_id):
         return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
 
     invoice.mp_external_reference = invoice_external_reference(invoice)
+    invoice.mp_preference_id = preference.get("id")
     invoice.payment_link = redirect_url
     invoice.status = "aguardando pagamento"
     db.session.commit()
@@ -768,6 +813,7 @@ def api_pay_invoice(invoice_id):
         return jsonify({"ok": False, "message": str(exc)}), 400
 
     invoice.mp_external_reference = invoice_external_reference(invoice)
+    invoice.mp_preference_id = preference.get("id")
     invoice.payment_link = redirect_url
     invoice.status = "aguardando pagamento"
     db.session.commit()
@@ -788,18 +834,7 @@ def invoice_payment_return(invoice_id, status):
             mp_status = payment_data.get("status")
             invoice.mp_external_reference = payment_data.get("external_reference") or invoice_external_reference(invoice)
             if mp_status == "approved":
-                invoice.status = "pago"
-                exists = Payment.query.filter_by(transaction_code=str(payment_id)).first()
-                if not exists:
-                    db.session.add(Payment(
-                        invoice_id=invoice.id,
-                        amount=Decimal(str(payment_data.get("transaction_amount", invoice.total))),
-                        status="pago",
-                        method=payment_data.get("payment_method_id"),
-                        transaction_code=str(payment_id),
-                        receipt_url=(payment_data.get("transaction_details") or {}).get("external_resource_url"),
-                        paid_at=brazil_now(),
-                    ))
+                register_approved_mp_invoice_payment(invoice, payment_data)
                 flash("Pagamento aprovado!", "success")
             elif mp_status in {"pending", "in_process", "authorized"}:
                 invoice.status = "aguardando pagamento"
@@ -1142,13 +1177,26 @@ def admin_refund_invoice(invoice_id):
         flash("Nenhum pagamento aprovado encontrado para estornar.", "warning")
         return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
 
-    should_call_mp = payment.transaction_code and not str(payment.transaction_code).startswith(("manual-", "subscription-"))
-    if should_call_mp:
+    transaction_code = str(payment.transaction_code or "").strip()
+    is_manual_or_subscription = transaction_code.startswith(("manual-", "subscription-"))
+
+    if not is_manual_or_subscription:
         try:
-            refund_payment(payment.transaction_code)
-        except Exception as exc:
-            current_app.logger.exception("Erro ao estornar pagamento Mercado Pago: %s", exc)
+            payment_id, payment_data = resolve_invoice_mp_payment(invoice, payment)
+            mp_status = payment_data.get("status")
+            if mp_status not in {"approved", "authorized"}:
+                raise RuntimeError(f"Pagamento Mercado Pago {payment_id} está com status '{mp_status}', então não pode ser estornado automaticamente.")
+            refund_payment(payment_id)
+            payment.transaction_code = payment_id
+        except MercadoPagoPaymentError as exc:
+            current_app.logger.exception("Erro ao estornar pagamento Mercado Pago: %s | payload=%s", exc, getattr(exc, "payload", None))
             flash(f"Mercado Pago nao confirmou o estorno: {exc}", "danger")
+            flash(f"Diagnóstico: ambiente={mercadopago_environment()} | fatura={invoice.id} | payment_salvo={transaction_code or 'vazio'} | external_reference={invoice.mp_external_reference or invoice_external_reference(invoice)} | {mercadopago_error_debug(exc.payload)}", "warning")
+            return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
+        except Exception as exc:
+            current_app.logger.exception("Erro ao preparar estorno Mercado Pago: %s", exc)
+            flash(f"Não foi possível localizar/validar o pagamento para estorno: {exc}", "danger")
+            flash(f"Diagnóstico: ambiente={mercadopago_environment()} | fatura={invoice.id} | payment_salvo={transaction_code or 'vazio'} | external_reference={invoice.mp_external_reference or invoice_external_reference(invoice)}", "warning")
             return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
 
     payment.status = "estornado"
@@ -1158,6 +1206,7 @@ def admin_refund_invoice(invoice_id):
     db.session.commit()
     flash("Pagamento estornado/recusado e fatura reaberta.", "success")
     return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
+
 @bp.route("/webhooks/mercadopago", methods=["POST", "GET"])
 def mercadopago_webhook():
     payload = request.get_json(silent=True) or request.args.to_dict()
@@ -1176,17 +1225,6 @@ def mercadopago_webhook():
         return jsonify({"ok": True, "type": "subscription"})
     invoice = Invoice.query.filter_by(mp_external_reference=external_reference).first()
     if invoice and payment_data.get("status") == "approved":
-        invoice.status = "pago"
-        exists = Payment.query.filter_by(transaction_code=str(payment_id)).first()
-        if not exists:
-            db.session.add(Payment(
-                invoice_id=invoice.id,
-                amount=Decimal(str(payment_data.get("transaction_amount", invoice.total))),
-                status="pago",
-                method=payment_data.get("payment_method_id"),
-                transaction_code=str(payment_id),
-                receipt_url=payment_data.get("transaction_details", {}).get("external_resource_url"),
-                paid_at=brazil_now(),
-            ))
+        register_approved_mp_invoice_payment(invoice, payment_data)
         db.session.commit()
     return jsonify({"ok": True})
