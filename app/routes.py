@@ -360,6 +360,38 @@ def logout():
 
 
 
+def visible_recent_invoices(query, limit=5):
+    """Return recent real invoices, excluding Railway preview/future cycles.
+
+    Some Railway syncs can create date-range invoices for the active/future
+    cycle (for example 27/04/2026 a 27/05/2026). Those belong in
+    Proximas faturas, not in Ultimas/Faturas recentes. Fetch a larger
+    window first, refresh open statuses, then keep only real visible invoices.
+    """
+    candidates = query.order_by(Invoice.created_at.desc()).limit(max(limit * 6, 30)).all()
+    visible = []
+    changed = False
+
+    for invoice in candidates:
+        old_status = invoice.status
+        old_due_date = invoice.due_date
+        refresh_invoice_status(invoice)
+        if invoice.status != old_status or invoice.due_date != old_due_date:
+            changed = True
+
+        if invoice_is_future_cycle(invoice):
+            continue
+
+        visible.append(invoice)
+        if len(visible) >= limit:
+            break
+
+    if changed:
+        db.session.commit()
+
+    return visible
+
+
 def build_upcoming_invoices(projects):
     """Preview next month invoices without creating DB records."""
     today = brazil_today()
