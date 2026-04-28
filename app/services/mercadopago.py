@@ -6,9 +6,6 @@ import requests
 
 
 MP_API_BASE = "https://api.mercadopago.com"
-TEST_USER_EMAIL_SUFFIX = "@testuser.com"
-PRODUCTION_ENVS = {"production", "prod", "live"}
-TEST_ENVS = {"test", "sandbox", "testing", "development", "dev"}
 
 
 class MercadoPagoConfigError(RuntimeError):
@@ -23,26 +20,21 @@ class MercadoPagoPaymentError(RuntimeError):
 
 
 def mercadopago_public_key():
-    return (os.getenv("MERCADO_PAGO_PUBLIC_KEY") or os.getenv("MP_PUBLIC_KEY") or "").strip()
+    return os.getenv("MERCADO_PAGO_PUBLIC_KEY") or os.getenv("MP_PUBLIC_KEY")
 
 
 def mercadopago_access_token():
-    return (os.getenv("MERCADO_PAGO_ACCESS_TOKEN") or os.getenv("MP_ACCESS_TOKEN") or "").strip()
+    return os.getenv("MERCADO_PAGO_ACCESS_TOKEN") or os.getenv("MP_ACCESS_TOKEN")
 
 
 def mercadopago_environment():
-    """Return normalized Mercado Pago environment: test or production.
-
-    Mercado Pago can show test credentials that also start with APP_USR-. Because of
-    that, do not infer test/production only by the token prefix.
-    """
-    raw = (os.getenv("MERCADO_PAGO_ENVIRONMENT") or os.getenv("MP_ENV") or "test").strip().lower()
-    if raw in PRODUCTION_ENVS:
-        return "production"
-    return "test"
+    """Returns test or production. Default is test to avoid accidental live charges."""
+    return (os.getenv("MERCADO_PAGO_ENVIRONMENT") or os.getenv("MP_ENV") or "test").strip().lower()
 
 
 def mercadopago_test_payer_email():
+    # Mantido apenas por compatibilidade com ambientes que ja tenham a variavel.
+    # O fluxo de cartao/Brick nao usa esta variavel automaticamente.
     return (os.getenv("MERCADO_PAGO_TEST_PAYER_EMAIL") or "").strip()
 
 
@@ -50,47 +42,23 @@ def mercadopago_configured():
     return bool(mercadopago_public_key() and mercadopago_access_token())
 
 
-def credential_summary():
-    """Safe, non-secret summary for diagnostics/logs/UI."""
-    public_key = mercadopago_public_key()
-    access_token = mercadopago_access_token()
-    return {
-        "environment": mercadopago_environment(),
-        "public_key_prefix": public_key.split("-", 1)[0] if public_key else "missing",
-        "access_token_prefix": access_token.split("-", 1)[0] if access_token else "missing",
-        "has_test_payer_email": bool(mercadopago_test_payer_email()),
-    }
-
-
 def validate_mercadopago_credentials():
     public_key = mercadopago_public_key()
     access_token = mercadopago_access_token()
-    raw_environment = (os.getenv("MERCADO_PAGO_ENVIRONMENT") or os.getenv("MP_ENV") or "test").strip().lower()
     environment = mercadopago_environment()
 
     if not public_key or not access_token:
         raise MercadoPagoConfigError("Configure MERCADO_PAGO_PUBLIC_KEY e MERCADO_PAGO_ACCESS_TOKEN.")
 
-    if raw_environment not in TEST_ENVS | PRODUCTION_ENVS:
+    if environment not in {"test", "production", "prod", "live"}:
         raise MercadoPagoConfigError("MERCADO_PAGO_ENVIRONMENT deve ser test ou production.")
 
-    if environment == "test":
-        test_payer_email = mercadopago_test_payer_email()
-        if not test_payer_email:
-            raise MercadoPagoConfigError(
-                "Configure MERCADO_PAGO_TEST_PAYER_EMAIL com o e-mail de uma conta compradora de teste do Mercado Pago."
-            )
-        if "@" not in test_payer_email:
-            raise MercadoPagoConfigError(
-                "MERCADO_PAGO_TEST_PAYER_EMAIL precisa ser o e-mail da conta de teste, não apenas o usuário/ID. "
-                "Crie/copiei uma conta compradora em Mercado Pago > Contas de teste."
-            )
-
-    # Important: test credentials may start with APP_USR-, depending on the Mercado Pago panel.
-    # We only enforce that production does not accidentally use old TEST- keys.
-    if environment == "production" and (public_key.startswith("TEST-") or access_token.startswith("TEST-")):
+    # O Mercado Pago pode exibir credenciais de teste com prefixo APP_USR-.
+    # Nao valide ambiente pelo prefixo; deixe a API validar o par de credenciais.
+    if environment in {"production", "prod", "live"} and access_token.startswith("TEST-"):
         raise MercadoPagoConfigError(
-            "Ambiente production não pode usar credenciais TEST-. Use as credenciais de produção do Mercado Pago."
+            "Ambiente production nao pode usar ACCESS TOKEN de teste. "
+            "Use as credenciais da tela Credenciais de producao."
         )
 
     return True
@@ -102,16 +70,17 @@ def invoice_external_reference(invoice):
 
 def _headers(idempotency_key=None):
     validate_mercadopago_credentials()
-    return {
+    headers = {
         "Authorization": f"Bearer {mercadopago_access_token()}",
         "Content-Type": "application/json",
         "X-Idempotency-Key": idempotency_key or str(uuid.uuid4()),
     }
+    return headers
 
 
 def humanize_mercadopago_error(error_payload):
     if not isinstance(error_payload, dict):
-        return "Mercado Pago recusou a transação. Confira as credenciais e os dados do pagamento."
+        return "Mercado Pago recusou a transacao. Confira as credenciais e os dados do pagamento."
 
     message = str(error_payload.get("message") or "")
     causes = error_payload.get("cause") or []
@@ -120,15 +89,13 @@ def humanize_mercadopago_error(error_payload):
 
     if "unauthorized use of live credentials" in combined:
         return (
-            "Mercado Pago recusou por mistura de ambiente real/teste. Use, ao mesmo tempo: "
-            "credenciais da tela Credenciais de teste da mesma aplicação, uma conta compradora de teste em "
-            "MERCADO_PAGO_TEST_PAYER_EMAIL e cartões de teste. Não use sua conta real como comprador no teste."
+            "Mercado Pago recusou por mistura de ambiente real/teste. Para pagamento com cartao no Checkout Transparente/Brick, "
+            "use as credenciais da tela Credenciais de teste da sua conta real e preencha no checkout um e-mail de pagador comum, "
+            "diferente do e-mail da sua conta Mercado Pago. Nao force e-mail de conta de teste compradora no Brick de cartao."
         )
     if "invalid access token" in combined or "access token" in combined or error_payload.get("status") == 401:
-        return "Mercado Pago recusou as credenciais. Confira se o ACCESS TOKEN pertence à mesma aplicação da PUBLIC KEY."
-    if "payer" in combined and "email" in combined:
-        return "Mercado Pago recusou o pagador. Em teste, use o e-mail de uma conta compradora de teste."
-    return error_payload.get("message") or "Mercado Pago recusou a transação."
+        return "Mercado Pago recusou as credenciais. Confira se o ACCESS TOKEN pertence a mesma aplicacao da PUBLIC KEY."
+    return error_payload.get("message") or "Mercado Pago recusou a transacao."
 
 
 def create_card_payment(invoice, payment_data, idempotency_key=None):
@@ -142,13 +109,13 @@ def create_card_payment(invoice, payment_data, idempotency_key=None):
     payer = payment_data.get("payer") or {}
     payer_email = payer.get("email") or invoice.client.email
 
-    if mercadopago_environment() == "test":
-        payer_email = mercadopago_test_payer_email()
-
+    # No Card Payment Brick, use um e-mail comum de pagador, diferente do e-mail
+    # da conta Mercado Pago vendedora. Nao substitua automaticamente por conta
+    # de teste compradora, pois isso pode causar mistura real/teste nesse fluxo.
     if not token or not payment_method_id or not payer_email:
         raise ValueError("Dados de pagamento incompletos.")
 
-    base_url = (os.getenv("PUBLIC_BASE_URL") or os.getenv("BASE_URL") or "http://localhost:5000").rstrip("/")
+    base_url = os.getenv("PUBLIC_BASE_URL", "http://localhost:5000").rstrip("/")
     external_reference = invoice_external_reference(invoice)
 
     payload = {
@@ -157,7 +124,9 @@ def create_card_payment(invoice, payment_data, idempotency_key=None):
         "description": f"Fatura {invoice.number} - {invoice.project.name}",
         "installments": int(installments),
         "payment_method_id": payment_method_id,
-        "payer": {"email": payer_email},
+        "payer": {
+            "email": payer_email,
+        },
         "external_reference": external_reference,
         "notification_url": f"{base_url}/webhooks/mercadopago",
         "metadata": {

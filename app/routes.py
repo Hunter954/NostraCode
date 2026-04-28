@@ -5,7 +5,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db, oauth
 from .models import User, Project, Invoice, Payment, RailwayService, RailwayUsageSnapshot
-from .services.mercadopago import create_card_payment, fetch_payment, invoice_external_reference, mercadopago_configured, mercadopago_public_key, mercadopago_environment, mercadopago_test_payer_email, validate_mercadopago_credentials, credential_summary
+from .services.mercadopago import create_card_payment, fetch_payment, invoice_external_reference, mercadopago_configured, mercadopago_public_key, mercadopago_environment, validate_mercadopago_credentials
 from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period, invoice_payment_available, invoice_payable_date, refresh_invoice_status, brazil_now, brazil_today, _add_months, RAILWAY_BILLING_DAY, INVOICE_DAYS_BEFORE_BILLING_DAY, invoice_is_future_cycle
 from werkzeug.utils import secure_filename
 from authlib.integrations.base_client.errors import OAuthError
@@ -575,7 +575,7 @@ def invoice_checkout(invoice_id):
         public_key=mercadopago_public_key(),
         amount=float(invoice.total),
         mp_environment=mercadopago_environment(),
-        payer_email=mercadopago_test_payer_email() if mercadopago_environment() == "test" and mercadopago_test_payer_email() else invoice.client.email,
+        payer_email=invoice.client.email,
     )
 
 
@@ -599,11 +599,10 @@ def api_pay_invoice(invoice_id):
     payload = request.get_json(silent=True) or {}
     idempotency_key = request.headers.get("X-Idempotency-Key") or secrets.token_urlsafe(24)
     try:
-        current_app.logger.info("Mercado Pago checkout config: %s", credential_summary())
         payment_data = create_card_payment(invoice, payload, idempotency_key=idempotency_key)
     except Exception as exc:
         current_app.logger.exception("Erro ao criar pagamento Mercado Pago: %s", exc)
-        return jsonify({"ok": False, "message": str(exc), "detail": str(exc)}), 400
+        return jsonify({"ok": False, "message": "Não foi possível processar o pagamento.", "detail": str(exc)}), 400
 
     mp_status = payment_data.get("status")
     payment_id = str(payment_data.get("id"))

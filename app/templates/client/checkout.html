@@ -27,7 +27,7 @@
     </div>
     <div class="soft-alert mini">
       <strong>Ambiente Mercado Pago</strong>
-      <p>Modo atual: <b>{{ mp_environment }}</b>. Em teste, use as credenciais da tela <b>Credenciais de teste</b>, uma <b>conta compradora de teste</b> e cartões de teste. Não use sua conta real como comprador.</p>
+      <p>Modo atual: <b>{{ mp_environment }}</b>. Para testar cartão no Brick, use as credenciais de teste da sua conta real, um e-mail de pagador comum diferente da sua conta Mercado Pago e cartões de teste.</p>
     </div>
   </aside>
 </div>
@@ -69,7 +69,7 @@
       onReady: () => showCheckoutStatus('Checkout carregado. Você já pode preencher os dados do cartão.', 'info'),
       onError: (error) => {
         console.error(error);
-        showCheckoutStatus(error?.message || 'Não foi possível carregar o checkout. Recarregue a página ou tente novamente.', 'error');
+        showCheckoutStatus('Não foi possível carregar o checkout. Recarregue a página ou tente novamente.', 'error');
       },
       onSubmit: (cardFormData) => {
         showCheckoutStatus('Processando pagamento...', 'info');
