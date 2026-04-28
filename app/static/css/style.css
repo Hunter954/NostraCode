@@ -981,3 +981,12 @@ body::before{display:none!important}
 @media(prefers-reduced-motion:reduce){
   .hero-sales.premium-hero.hero-centered .nostra-mesh-background::before{animation:none!important}
 }
+
+/* FIX: remove the black gap between the header and the animated home hero */
+.page:has(> .hero-sales.premium-hero.hero-centered){
+  padding-top:0!important;
+}
+
+.page:has(> .hero-sales.premium-hero.hero-centered) > .hero-sales.premium-hero.hero-centered{
+  margin-top:0!important;
+}
