@@ -716,3 +716,10 @@ body::before{display:none!important}
 .admin-upcoming-invoices-card .invoice-table td[data-label="Período"]{white-space:nowrap}
 @media(max-width:1100px){.admin-overview-grid{grid-template-columns:1fr}.admin-invoices-card .invoice-table{min-width:760px}}
 @media(min-width:1101px){.admin-overview-grid{align-items:start}.admin-projects-card{max-width:100%}}
+
+/* Invoice section spacing and project invoice previews */
+.dashboard-invoice-grid,.project-invoice-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:28px;align-items:start}
+.dashboard-invoice-grid .card,.project-invoice-grid .card{min-width:0}
+.project-invoice-grid .table-wrap{overflow-x:auto}
+.project-invoice-grid .invoice-table{min-width:720px}
+@media(max-width:900px){.dashboard-invoice-grid,.project-invoice-grid{gap:22px}}

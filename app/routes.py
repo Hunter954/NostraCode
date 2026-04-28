@@ -482,14 +482,14 @@ def project_detail(project_id):
     project = Project.query.get_or_404(project_id)
     if not current_user.is_admin and project.client_id != current_user.id:
         abort(403)
-    invoices = Invoice.query.filter_by(project_id=project.id).order_by(Invoice.created_at.desc()).all()
-    snapshots = RailwayUsageSnapshot.query.filter_by(project_id=project.id).order_by(RailwayUsageSnapshot.created_at.desc()).limit(90).all()
-    usage_chart = build_usage_chart(snapshots, project)
+    invoices = visible_recent_invoices(Invoice.query.filter_by(project_id=project.id), limit=12)
+    snapshots = RailwayUsageSnapshot.query.filter_by(project_id=project.id).order_by(RailwayUsageSnapshot.created_at.desc()).limit(5).all()
+    usage_chart_snapshots = RailwayUsageSnapshot.query.filter_by(project_id=project.id).order_by(RailwayUsageSnapshot.created_at.desc()).limit(90).all()
+    usage_chart = build_usage_chart(usage_chart_snapshots, project)
+    upcoming_invoices = build_upcoming_invoices([project])
     cycle_start, cycle_end = current_billing_cycle()
     billing_period = format_billing_period(cycle_start, cycle_end)
-    refresh_invoice_collection(invoices)
-    return render_template("client/project_detail.html", project=project, invoices=invoices, snapshots=snapshots, usage_chart=usage_chart, billing_period=billing_period, billing_due_date=cycle_end, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date)
-
+    return render_template("client/project_detail.html", project=project, invoices=invoices, upcoming_invoices=upcoming_invoices, snapshots=snapshots, usage_chart=usage_chart, billing_period=billing_period, billing_due_date=cycle_end, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date)
 
 @bp.route("/invoices")
 @login_required

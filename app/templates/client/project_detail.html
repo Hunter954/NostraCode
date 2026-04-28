@@ -136,5 +136,26 @@
   </div>
 </div>
 
-<div class="card mt"><h2>Faturas do projeto</h2>{% include 'partials/invoice_table.html' %}</div>
+<div class="project-invoice-grid mt">
+  <div class="card"><h2>Faturas do projeto</h2>{% include 'partials/invoice_table.html' %}</div>
+  <div class="card"><h2>Próximas faturas</h2>
+    <div class="table-wrap">
+      <table class="invoice-table upcoming-invoice-table">
+        <thead><tr><th>Projeto</th><th>Período</th><th>Valor estimado</th><th>Pagável a partir de</th></tr></thead>
+        <tbody>
+          {% for invoice in upcoming_invoices %}
+          <tr>
+            <td data-label="Projeto">{{ invoice.project.name }}</td>
+            <td data-label="Período">{{ invoice.period }}</td>
+            <td data-label="Valor estimado">{{ invoice.total|brl }}</td>
+            <td data-label="Pagável a partir de">{{ invoice.due_date|datebr }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4">Nenhuma próxima fatura prevista.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 {% endblock %}

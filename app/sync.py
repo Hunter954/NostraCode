@@ -241,23 +241,17 @@ def invoice_period_dates(invoice: Invoice) -> tuple[date | None, date | None]:
 
 
 def invoice_is_future_cycle(invoice: Invoice, today: date | None = None) -> bool:
-    """Keep future/preview Railway cycles out of recent invoice lists.
+    """Keep Railway date-range previews out of real invoice lists.
 
-    Real payable invoices in this app use month labels (ex.: Abril/2026). A
-    date-range invoice that starts on the active Railway cycle, or an open
-    date-range invoice that ends exactly as the active cycle starts, is a
-    generated preview and belongs only in Próximas faturas.
+    Real payable invoices in this app use month labels (ex.: Abril/2026).
+    Date-range records (ex.: 27/04/2026 a 27/05/2026) are Railway usage
+    previews and must appear only in Proximas faturas, which is generated
+    virtually from the project estimate. Hiding every date-range invoice here
+    prevents old preview records from leaking into Dashboard, Admin and Project
+    invoice tables after deploys or syncs.
     """
-    today = today or brazil_today()
     start, end = invoice_period_dates(invoice)
-    if not start or not end:
-        return False
-    current_start, current_end = current_billing_cycle(today)
-    if start >= current_start:
-        return True
-    if invoice.status != "pago" and end == current_start:
-        return True
-    return False
+    return bool(start and end)
 
 def invoice_payable_date(invoice: Invoice) -> date:
     """Return the first day the client is allowed to pay this invoice.
