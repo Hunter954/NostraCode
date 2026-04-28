@@ -27,7 +27,7 @@
     </div>
     <div class="soft-alert mini">
       <strong>Ambiente Mercado Pago</strong>
-      <p>Modo atual: <b>{{ mp_environment }}</b>. Em teste, use chaves TEST- e comprador/cartões de teste. Em produção, use chaves APP_USR- e compradores reais.</p>
+      <p>Modo atual: <b>{{ mp_environment }}</b>. Em teste, use as credenciais da tela <b>Credenciais de teste</b>, uma <b>conta compradora de teste</b> e cartões de teste. Não use sua conta real como comprador.</p>
     </div>
   </aside>
 </div>
@@ -69,7 +69,7 @@
       onReady: () => showCheckoutStatus('Checkout carregado. Você já pode preencher os dados do cartão.', 'info'),
       onError: (error) => {
         console.error(error);
-        showCheckoutStatus('Não foi possível carregar o checkout. Recarregue a página ou tente novamente.', 'error');
+        showCheckoutStatus(error?.message || 'Não foi possível carregar o checkout. Recarregue a página ou tente novamente.', 'error');
       },
       onSubmit: (cardFormData) => {
         showCheckoutStatus('Processando pagamento...', 'info');
