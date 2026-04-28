@@ -1,8 +1,17 @@
 from datetime import datetime, date
+from zoneinfo import ZoneInfo
 from decimal import Decimal
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from .extensions import db
+
+BRAZIL_TZ = ZoneInfo("America/Sao_Paulo")
+
+def brazil_now_model():
+    return datetime.now(BRAZIL_TZ).replace(tzinfo=None)
+
+def brazil_today_model():
+    return brazil_now_model().date()
 
 
 class User(UserMixin, db.Model):
@@ -21,7 +30,7 @@ class User(UserMixin, db.Model):
     accepted_terms = db.Column(db.Boolean, default=False)
     role = db.Column(db.String(20), default="client")
     is_active_client = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=brazil_now_model)
 
     projects = db.relationship("Project", backref="client", lazy=True)
     invoices = db.relationship("Invoice", backref="client", lazy=True)
@@ -56,7 +65,7 @@ class Project(db.Model):
     current_cost = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
     estimated_cost = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
     management_fee = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
-    last_cost_update = db.Column(db.DateTime, default=datetime.utcnow)
+    last_cost_update = db.Column(db.DateTime, default=brazil_now_model)
     last_sync_at = db.Column(db.DateTime)
     sync_status = db.Column(db.String(40), default="manual")
     sync_error = db.Column(db.Text)
@@ -66,7 +75,7 @@ class Project(db.Model):
     description = db.Column(db.Text)
     tech_stack = db.Column(db.String(500))
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=brazil_now_model)
 
     @property
     def stack_badges(self):
@@ -101,11 +110,11 @@ class Invoice(db.Model):
     fines = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
     total = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
     status = db.Column(db.String(40), default="pendente")
-    due_date = db.Column(db.Date, default=date.today)
+    due_date = db.Column(db.Date, default=brazil_today_model)
     payment_link = db.Column(db.String(500))
     mp_preference_id = db.Column(db.String(180))
     mp_external_reference = db.Column(db.String(180), index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=brazil_now_model)
 
     payments = db.relationship("Payment", backref="invoice", lazy=True)
 
@@ -115,7 +124,7 @@ class Payment(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     invoice_id = db.Column(db.Integer, db.ForeignKey("invoices.id"), nullable=False)
-    paid_at = db.Column(db.DateTime, default=datetime.utcnow)
+    paid_at = db.Column(db.DateTime, default=brazil_now_model)
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     status = db.Column(db.String(40), default="pago")
     method = db.Column(db.String(80))
@@ -134,7 +143,7 @@ class RailwayService(db.Model):
     environment_name = db.Column(db.String(100))
     latest_deployment_status = db.Column(db.String(80))
     public_url = db.Column(db.String(500))
-    last_sync_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_sync_at = db.Column(db.DateTime, default=brazil_now_model)
 
 
 class RailwayUsageSnapshot(db.Model):
@@ -148,4 +157,4 @@ class RailwayUsageSnapshot(db.Model):
     usage_period_start = db.Column(db.DateTime)
     usage_period_end = db.Column(db.DateTime)
     raw_payload = db.Column(db.JSON)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=brazil_now_model, index=True)

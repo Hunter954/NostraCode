@@ -29,5 +29,26 @@
   </a>
   {% else %}<div class="card"><h3>Nenhum projeto vinculado ainda.</h3><p>Seu administrador pode cadastrar seu projeto no painel admin.</p></div>{% endfor %}
 </div>
-<div class="card mt"><h2>Últimas faturas</h2>{% include 'partials/invoice_table.html' %}</div>
+<div class="dashboard-invoice-grid mt">
+  <div class="card"><h2>Últimas faturas</h2>{% include 'partials/invoice_table.html' %}</div>
+  <div class="card"><h2>Próximas faturas</h2>
+    <div class="table-wrap">
+      <table class="invoice-table upcoming-invoice-table">
+        <thead><tr><th>Projeto</th><th>Período</th><th>Valor estimado</th><th>Pagável a partir de</th></tr></thead>
+        <tbody>
+          {% for invoice in upcoming_invoices %}
+          <tr>
+            <td data-label="Projeto">{{ invoice.project.name }}</td>
+            <td data-label="Período">{{ invoice.period }}</td>
+            <td data-label="Valor estimado">{{ invoice.total|brl }}</td>
+            <td data-label="Pagável a partir de">{{ invoice.due_date|datebr }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4">Nenhuma próxima fatura prevista.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
 {% endblock %}

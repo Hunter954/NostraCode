@@ -691,3 +691,21 @@ body::before{display:none!important}
 .invoice-pay-lock::before,.disabled-pay-wrap::before{content:"";position:absolute;left:50%;bottom:calc(100% + 4px);transform:translateX(-50%);border:5px solid transparent;border-top-color:#111;opacity:0;pointer-events:none;transition:opacity .16s ease;z-index:31}
 .invoice-pay-lock:hover::after,.invoice-pay-lock:hover::before,.disabled-pay-wrap:hover::after,.disabled-pay-wrap:hover::before{opacity:1;transform:translateX(-50%) translateY(0)}
 @media(max-width:900px){.invoice-table{min-width:0}.invoice-table th,.invoice-table td{white-space:normal}.invoice-icon-actions{justify-content:flex-start}.invoice-pay-lock::after,.disabled-pay-wrap::after{left:0;transform:translateY(4px);white-space:normal;min-width:180px}.invoice-pay-lock::before,.disabled-pay-wrap::before{left:18px}.invoice-pay-lock:hover::after,.disabled-pay-wrap:hover::after{transform:translateY(0)}}
+
+/* Dashboard invoice layout refinements */
+.dashboard-invoice-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
+.dashboard-invoice-grid .card{min-width:0}
+.upcoming-invoice-table{min-width:620px}
+
+/* Admin dashboard: give invoice table more horizontal room so text stays on one line */
+.admin-overview-grid{grid-template-columns:minmax(280px,.9fr) minmax(620px,1.25fr)}
+.admin-overview-grid .card{min-width:0}
+.admin-projects-card .admin-project-item span{min-width:0}
+.admin-projects-card .admin-project-item b,
+.admin-projects-card .admin-project-item small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.admin-invoices-card .invoice-table{min-width:640px}
+.admin-invoices-card .invoice-table td[data-label="Projeto"],
+.admin-invoices-card .invoice-table td[data-label="Período"]{white-space:nowrap;min-width:0}
+.admin-invoices-card .table-wrap{overflow-x:auto}
+@media(max-width:1100px){.admin-overview-grid{grid-template-columns:1fr}.admin-invoices-card .invoice-table{min-width:760px}}
+@media(min-width:1101px){.admin-overview-grid{align-items:start}.admin-projects-card{max-width:100%}}

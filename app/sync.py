@@ -1,8 +1,17 @@
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 import calendar
 import re
 from decimal import Decimal
 from typing import Tuple
+
+BRAZIL_TZ = ZoneInfo("America/Sao_Paulo")
+
+def brazil_now() -> datetime:
+    return datetime.now(BRAZIL_TZ).replace(tzinfo=None)
+
+def brazil_today() -> date:
+    return brazil_now().date()
 
 from .extensions import db
 from .models import Invoice, Project, RailwayService, RailwayUsageSnapshot
@@ -23,7 +32,7 @@ def sync_project_from_railway(project: Project) -> Project:
     if not project.railway_project_id:
         raise RailwayAPIError("Este projeto não tem railway_project_id configurado.")
 
-    now = datetime.utcnow()
+    now = brazil_now()
     railway_project = get_project(project.railway_project_id)
     if not railway_project:
         raise RailwayAPIError("Projeto não encontrado na Railway ou token sem acesso.")
@@ -132,7 +141,7 @@ def sync_all_projects() -> Tuple[int, int, int]:
         except Exception as exc:
             project.sync_status = "erro"
             project.sync_error = str(exc)
-            project.last_sync_at = datetime.utcnow()
+            project.last_sync_at = brazil_now()
             db.session.commit()
             failed += 1
     return len(projects), ok, failed
@@ -157,7 +166,7 @@ def _billing_anchor(year: int, month: int, day: int = RAILWAY_BILLING_DAY) -> da
 
 def current_billing_cycle(today: date | None = None) -> tuple[date, date]:
     """Return the Railway billing cycle currently accumulating usage, day 27 -> 27."""
-    today = today or date.today()
+    today = today or brazil_today()
     this_month_anchor = _billing_anchor(today.year, today.month)
     if today >= this_month_anchor:
         start = this_month_anchor
@@ -170,7 +179,7 @@ def current_billing_cycle(today: date | None = None) -> tuple[date, date]:
 
 def invoice_billing_cycle(today: date | None = None) -> tuple[date, date]:
     """Return the billing cycle that is being previewed/closed for payment."""
-    today = today or date.today()
+    today = today or brazil_today()
     due_date = _billing_anchor(today.year, today.month)
     start = _add_months(due_date, -1)
     return start, due_date
@@ -181,7 +190,7 @@ def format_billing_period(start: date, end: date) -> str:
 
 
 def should_show_invoice(due_date: date, today: date | None = None) -> bool:
-    today = today or date.today()
+    today = today or brazil_today()
     return today >= due_date - timedelta(days=INVOICE_VISIBLE_DAYS_BEFORE_DUE)
 
 
@@ -205,7 +214,7 @@ def _invoice_billing_anchor(invoice: Invoice) -> date:
     if month_label and month_label.group(1) in MONTHS_PT:
         return _billing_anchor(int(month_label.group(2)), MONTHS_PT[month_label.group(1)])
 
-    base = invoice.due_date or date.today()
+    base = invoice.due_date or brazil_today()
     return _billing_anchor(base.year, base.month)
 
 
@@ -219,7 +228,7 @@ def invoice_payable_date(invoice: Invoice) -> date:
 
 def refresh_invoice_status(invoice: Invoice, today: date | None = None) -> Invoice:
     """Keep open invoice status aligned with the configured payment date."""
-    today = today or date.today()
+    today = today or brazil_today()
     if invoice.status == "pago":
         return invoice
     payable_date = invoice_payable_date(invoice)
@@ -234,7 +243,7 @@ def refresh_invoice_status(invoice: Invoice, today: date | None = None) -> Invoi
 
 def invoice_payment_available(invoice: Invoice, today: date | None = None) -> bool:
     """Allow checkout on/after the configured payment date."""
-    today = today or date.today()
+    today = today or brazil_today()
     refresh_invoice_status(invoice, today)
     return invoice.status != "pago" and invoice_payable_date(invoice) <= today
 
@@ -250,7 +259,7 @@ def _next_due_date(today: date | None = None) -> date:
 
 
 def _next_invoice_number() -> str:
-    prefix = str(date.today().year)
+    prefix = str(brazil_today().year)
     count = Invoice.query.filter(Invoice.number.like(f"{prefix}-%")).count() + 1
     while True:
         number = f"{prefix}-{count:04d}"
@@ -275,7 +284,7 @@ def refresh_project_invoice(project: Project, period_start=None, period_end=None
     five days before that close date. After that payment date, the invoice can
     be paid; after the date passes, it is marked as overdue.
     """
-    today = date.today()
+    today = brazil_today()
     cycle_start, cycle_end = invoice_billing_cycle(today)
     period = format_billing_period(cycle_start, cycle_end)
     due_date = cycle_end - timedelta(days=INVOICE_DAYS_BEFORE_BILLING_DAY)

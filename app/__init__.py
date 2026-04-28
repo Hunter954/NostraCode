@@ -4,6 +4,7 @@ from datetime import date
 from decimal import Decimal
 from flask import Flask, url_for
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from .extensions import db, login_manager, oauth
@@ -116,7 +117,7 @@ def start_railway_auto_sync(app):
         replace_existing=True,
         max_instances=1,
         coalesce=True,
-        next_run_time=datetime.now(),
+        next_run_time=datetime.now(ZoneInfo("America/Sao_Paulo")),
     )
     scheduler.start()
     atexit.register(lambda: scheduler.shutdown(wait=False))

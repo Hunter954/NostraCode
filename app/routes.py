@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 from functools import wraps
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, current_app, send_from_directory, send_file, session
@@ -6,7 +6,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db, oauth
 from .models import User, Project, Invoice, Payment, RailwayService, RailwayUsageSnapshot
 from .services.mercadopago import create_payment_preference, fetch_payment
-from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period, invoice_payment_available, invoice_payable_date, refresh_invoice_status
+from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period, invoice_payment_available, invoice_payable_date, refresh_invoice_status, brazil_now, brazil_today, _add_months, RAILWAY_BILLING_DAY, INVOICE_DAYS_BEFORE_BILLING_DAY
 from werkzeug.utils import secure_filename
 from authlib.integrations.base_client.errors import OAuthError
 import os
@@ -74,7 +74,7 @@ def save_project_image(file_storage):
         return None
     upload_dir = current_app.config.get("PROJECT_UPLOAD_FOLDER") or os.path.join("/data", "uploads", "projects")
     os.makedirs(upload_dir, exist_ok=True)
-    unique_name = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}-{filename}"
+    unique_name = f"{brazil_now().strftime('%Y%m%d%H%M%S%f')}-{filename}"
     file_storage.save(os.path.join(upload_dir, unique_name))
     return f"/uploads/projects/{unique_name}"
 
@@ -122,7 +122,7 @@ def build_receipt_pdf(invoice, payment):
     pdf.drawRightString(width - margin, y - 4 * mm, "RECIBO DE PAGAMENTO")
     pdf.setFont("Helvetica", 10)
     pdf.drawRightString(width - margin, y - 11 * mm, f"Fatura #{invoice.number}")
-    pdf.drawRightString(width - margin, y - 17 * mm, f"Emitido em {datetime.utcnow().strftime('%d/%m/%Y')}")
+    pdf.drawRightString(width - margin, y - 17 * mm, f"Emitido em {brazil_now().strftime('%d/%m/%Y')}")
 
     y -= 35 * mm
     pdf.setStrokeColor(colors.black)
@@ -359,6 +359,32 @@ def logout():
     return redirect(url_for("main.index"))
 
 
+
+def build_upcoming_invoices(projects):
+    """Preview next month invoices without creating DB records."""
+    today = brazil_today()
+    next_anchor = _add_months(date(today.year, today.month, min(RAILWAY_BILLING_DAY, 28)), 1)
+    payable_date = next_anchor - timedelta(days=INVOICE_DAYS_BEFORE_BILLING_DAY)
+    period_start = _add_months(next_anchor, -1)
+    period = format_billing_period(period_start, next_anchor)
+    previews = []
+    for index, project in enumerate(projects, start=1):
+        amount = Decimal(project.estimated_cost or project.current_cost or "0.00").quantize(Decimal("0.01"))
+        previews.append(type("UpcomingInvoicePreview", (), {
+            "id": 0,
+            "number": f"PREV-{index:03d}",
+            "project": project,
+            "period": period,
+            "railway_cost": amount,
+            "management_fee": Decimal("0.00"),
+            "discounts": Decimal("0.00"),
+            "fines": Decimal("0.00"),
+            "total": amount,
+            "status": "prevista",
+            "due_date": payable_date,
+        })())
+    return previews
+
 @bp.route("/dashboard")
 @login_required
 def client_dashboard():
@@ -370,31 +396,32 @@ def client_dashboard():
     open_invoices = Invoice.query.filter(Invoice.client_id == current_user.id, Invoice.status.in_(["pendente", "aguardando pagamento", "atrasado"])).all()
     refresh_invoice_collection(open_invoices)
     next_invoice = sorted(open_invoices, key=invoice_payable_date)[0] if open_invoices else None
-    return render_template("client/dashboard.html", projects=projects, invoices=invoices, total_current=total_current, total_estimated=total_estimated, next_invoice=next_invoice, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date)
+    upcoming_invoices = build_upcoming_invoices(projects)
+    return render_template("client/dashboard.html", projects=projects, invoices=invoices, upcoming_invoices=upcoming_invoices, total_current=total_current, total_estimated=total_estimated, next_invoice=next_invoice, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date)
 
 
 def build_usage_chart(snapshots, project):
-    """Prepare Railway usage snapshots for the project consumption card."""
-    ordered_snapshots = list(reversed(snapshots))
-    points = []
-
-    for snapshot in ordered_snapshots:
+    """Prepare Railway usage snapshots aggregated month by month."""
+    month_points = {}
+    for snapshot in reversed(snapshots):
+        created_at = snapshot.created_at or brazil_now()
+        month_key = created_at.strftime("%Y-%m")
         value = snapshot.estimated_cost if snapshot.estimated_cost not in (None, Decimal("0.00")) else snapshot.current_cost
-        value = Decimal(value or "0.00")
-        created_at = snapshot.created_at
-        points.append({
-            "label": created_at.strftime("%d/%m"),
-            "time": created_at.strftime("%H:%M"),
-            "full_label": created_at.strftime("%d/%m/%Y às %H:%M"),
-            "value": value,
-        })
+        month_points[month_key] = {
+            "label": created_at.strftime("%m/%Y"),
+            "time": "",
+            "full_label": created_at.strftime("%B/%Y"),
+            "value": Decimal(value or "0.00"),
+        }
+
+    points = list(month_points.values())[-6:]
 
     if not points:
         fallback_value = Decimal(project.estimated_cost or project.current_cost or "0.00")
         points.append({
-            "label": "Atual",
+            "label": brazil_now().strftime("%m/%Y"),
             "time": "",
-            "full_label": "Valor atual do projeto",
+            "full_label": "Mês atual",
             "value": fallback_value,
         })
 
@@ -415,9 +442,8 @@ def build_usage_chart(snapshots, project):
         "points": points,
         "max_value": chart_max,
         "trend_percent": trend_percent,
-        "has_history": len(ordered_snapshots) > 1,
+        "has_history": len(points) > 1,
     }
-
 
 @bp.route("/projects/<int:project_id>")
 @login_required
@@ -426,7 +452,7 @@ def project_detail(project_id):
     if not current_user.is_admin and project.client_id != current_user.id:
         abort(403)
     invoices = Invoice.query.filter_by(project_id=project.id).order_by(Invoice.created_at.desc()).all()
-    snapshots = RailwayUsageSnapshot.query.filter_by(project_id=project.id).order_by(RailwayUsageSnapshot.created_at.desc()).limit(8).all()
+    snapshots = RailwayUsageSnapshot.query.filter_by(project_id=project.id).order_by(RailwayUsageSnapshot.created_at.desc()).limit(90).all()
     usage_chart = build_usage_chart(snapshots, project)
     cycle_start, cycle_end = current_billing_cycle()
     billing_period = format_billing_period(cycle_start, cycle_end)
@@ -662,7 +688,7 @@ def admin_project_new():
             except Exception as exc:
                 project.sync_status = "erro"
                 project.sync_error = str(exc)
-                project.last_sync_at = datetime.utcnow()
+                project.last_sync_at = brazil_now()
                 db.session.commit()
                 flash(f"Projeto criado, mas a sincronização Railway falhou: {exc}", "warning")
         else:
@@ -702,7 +728,7 @@ def admin_project_edit(project_id):
             project.estimated_cost = Decimal("0.00")
             project.monthly_value = Decimal("0.00")
             project.management_fee = Decimal("0.00")
-            project.last_cost_update = datetime.utcnow()
+            project.last_cost_update = brazil_now()
 
         db.session.commit()
 
@@ -713,7 +739,7 @@ def admin_project_edit(project_id):
             except Exception as exc:
                 project.sync_status = "erro"
                 project.sync_error = str(exc)
-                project.last_sync_at = datetime.utcnow()
+                project.last_sync_at = brazil_now()
                 db.session.commit()
                 flash(f"Projeto atualizado, mas a sincronização Railway falhou: {exc}", "warning")
         else:
@@ -737,7 +763,7 @@ def admin_project_sync_railway(project_id):
     except Exception as exc:
         project.sync_status = "erro"
         project.sync_error = str(exc)
-        project.last_sync_at = datetime.utcnow()
+        project.last_sync_at = brazil_now()
         db.session.commit()
         flash(f"Erro ao sincronizar Railway: {exc}", "danger")
     return redirect(url_for("main.project_detail", project_id=project.id))
@@ -783,7 +809,7 @@ def admin_invoice_new():
         db.session.commit()
         flash("Fatura criada.", "success")
         return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
-    suggested_number = f"{date.today().year}-{Invoice.query.count()+1:04d}"
+    suggested_number = f"{brazil_today().year}-{Invoice.query.count()+1:04d}"
     return render_template("admin/invoice_form.html", projects=projects, suggested_number=suggested_number)
 
 
@@ -799,6 +825,7 @@ def admin_mark_paid(invoice_id):
         status="pago",
         method=request.form.get("method", "manual"),
         transaction_code=request.form.get("transaction_code", f"manual-{invoice.id}"),
+        paid_at=brazil_now(),
     )
     db.session.add(payment)
     db.session.commit()
@@ -829,6 +856,7 @@ def mercadopago_webhook():
                 method=payment_data.get("payment_method_id"),
                 transaction_code=str(payment_id),
                 receipt_url=payment_data.get("transaction_details", {}).get("external_resource_url"),
+                paid_at=brazil_now(),
             ))
         db.session.commit()
     return jsonify({"ok": True})

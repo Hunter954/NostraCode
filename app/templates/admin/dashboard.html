@@ -45,8 +45,8 @@
   </div>
 </div>
 
-<div class="grid two gap mt">
-  <div class="card">
+<div class="grid admin-overview-grid gap mt">
+  <div class="card admin-projects-card">
     <h2>Projetos recentes</h2>
     <div class="admin-project-list">
       {% for project in projects %}
@@ -69,6 +69,6 @@
       {% endfor %}
     </div>
   </div>
-  <div class="card"><h2>Faturas recentes</h2>{% include 'partials/invoice_table.html' %}</div>
+  <div class="card admin-invoices-card"><h2>Faturas recentes</h2>{% include 'partials/invoice_table.html' %}</div>
 </div>
 {% endblock %}
