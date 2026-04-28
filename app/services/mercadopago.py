@@ -6,6 +6,18 @@ import requests
 
 
 MP_API_BASE = "https://api.mercadopago.com"
+TEST_USER_EMAIL_SUFFIX = "@testuser.com"
+
+
+class MercadoPagoConfigError(RuntimeError):
+    pass
+
+
+class MercadoPagoPaymentError(RuntimeError):
+    def __init__(self, payload):
+        self.payload = payload
+        message = humanize_mercadopago_error(payload)
+        super().__init__(message)
 
 
 def mercadopago_public_key():
@@ -16,8 +28,61 @@ def mercadopago_access_token():
     return os.getenv("MERCADO_PAGO_ACCESS_TOKEN") or os.getenv("MP_ACCESS_TOKEN")
 
 
+def mercadopago_environment():
+    """Returns test or production. Default is test to avoid accidental live charges."""
+    return (os.getenv("MERCADO_PAGO_ENVIRONMENT") or os.getenv("MP_ENV") or "test").strip().lower()
+
+
+def mercadopago_test_payer_email():
+    return (os.getenv("MERCADO_PAGO_TEST_PAYER_EMAIL") or "").strip()
+
+
+def _is_test_public_key(value):
+    return bool(value and value.startswith("TEST-"))
+
+
+def _is_test_access_token(value):
+    return bool(value and value.startswith("TEST-"))
+
+
+def _is_live_public_key(value):
+    return bool(value and value.startswith("APP_USR-"))
+
+
+def _is_live_access_token(value):
+    return bool(value and value.startswith("APP_USR-"))
+
+
 def mercadopago_configured():
     return bool(mercadopago_public_key() and mercadopago_access_token())
+
+
+def validate_mercadopago_credentials():
+    public_key = mercadopago_public_key()
+    access_token = mercadopago_access_token()
+    environment = mercadopago_environment()
+
+    if not public_key or not access_token:
+        raise MercadoPagoConfigError("Configure MERCADO_PAGO_PUBLIC_KEY e MERCADO_PAGO_ACCESS_TOKEN.")
+
+    if environment not in {"test", "production", "prod", "live"}:
+        raise MercadoPagoConfigError("MERCADO_PAGO_ENVIRONMENT deve ser test ou production.")
+
+    production_mode = environment in {"production", "prod", "live"}
+
+    if production_mode:
+        if not (_is_live_public_key(public_key) and _is_live_access_token(access_token)):
+            raise MercadoPagoConfigError(
+                "Ambiente production exige credenciais de produção começando com APP_USR-."
+            )
+    else:
+        if not (_is_test_public_key(public_key) and _is_test_access_token(access_token)):
+            raise MercadoPagoConfigError(
+                "Ambiente test exige credenciais de teste começando com TEST-. "
+                "O erro 'Unauthorized use of live credentials' acontece quando chaves APP_USR- são usadas em teste."
+            )
+
+    return True
 
 
 def invoice_external_reference(invoice):
@@ -25,19 +90,38 @@ def invoice_external_reference(invoice):
 
 
 def _headers(idempotency_key=None):
-    token = mercadopago_access_token()
+    validate_mercadopago_credentials()
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"Bearer {mercadopago_access_token()}",
         "Content-Type": "application/json",
         "X-Idempotency-Key": idempotency_key or str(uuid.uuid4()),
     }
     return headers
 
 
+def humanize_mercadopago_error(error_payload):
+    if not isinstance(error_payload, dict):
+        return "Mercado Pago recusou a transação. Confira as credenciais e os dados do pagamento."
+
+    message = str(error_payload.get("message") or "")
+    causes = error_payload.get("cause") or []
+    cause_text = " ".join(str(cause.get("description", "")) for cause in causes if isinstance(cause, dict))
+    combined = f"{message} {cause_text}".lower()
+
+    if "unauthorized use of live credentials" in combined:
+        return (
+            "Mercado Pago recusou porque credenciais de produção foram usadas em teste. "
+            "No Railway/local use MERCADO_PAGO_ENVIRONMENT=test com PUBLIC KEY e ACCESS TOKEN que começam com TEST-. "
+            "Use APP_USR- somente em produção real com MERCADO_PAGO_ENVIRONMENT=production."
+        )
+    if "invalid access token" in combined or "access token" in combined or error_payload.get("status") == 401:
+        return "Mercado Pago recusou as credenciais. Confira se o ACCESS TOKEN pertence à mesma aplicação da PUBLIC KEY."
+    return error_payload.get("message") or "Mercado Pago recusou a transação."
+
+
 def create_card_payment(invoice, payment_data, idempotency_key=None):
     """Create a Checkout Transparente payment using data returned by Card Payment Brick."""
-    if not mercadopago_access_token():
-        raise RuntimeError("MERCADO_PAGO_ACCESS_TOKEN não configurado.")
+    validate_mercadopago_credentials()
 
     token = payment_data.get("token")
     payment_method_id = payment_data.get("payment_method_id")
@@ -45,6 +129,10 @@ def create_card_payment(invoice, payment_data, idempotency_key=None):
     issuer_id = payment_data.get("issuer_id")
     payer = payment_data.get("payer") or {}
     payer_email = payer.get("email") or invoice.client.email
+
+    test_payer_email = mercadopago_test_payer_email()
+    if mercadopago_environment() == "test" and test_payer_email:
+        payer_email = test_payer_email
 
     if not token or not payment_method_id or not payer_email:
         raise ValueError("Dados de pagamento incompletos.")
@@ -67,6 +155,7 @@ def create_card_payment(invoice, payment_data, idempotency_key=None):
             "invoice_id": invoice.id,
             "invoice_number": invoice.number,
             "project_id": invoice.project_id,
+            "mp_environment": mercadopago_environment(),
         },
     }
 
@@ -93,18 +182,16 @@ def create_card_payment(invoice, payment_data, idempotency_key=None):
         try:
             error_payload = response.json()
         except Exception:
-            error_payload = {"message": response.text}
-        raise RuntimeError(error_payload)
+            error_payload = {"message": response.text, "status": response.status_code}
+        raise MercadoPagoPaymentError(error_payload)
     return response.json()
 
 
 def fetch_payment(payment_id):
-    token = mercadopago_access_token()
-    if not token:
-        return None
+    validate_mercadopago_credentials()
     response = requests.get(
         f"{MP_API_BASE}/v1/payments/{payment_id}",
-        headers={"Authorization": f"Bearer {token}"},
+        headers={"Authorization": f"Bearer {mercadopago_access_token()}"},
         timeout=15,
     )
     response.raise_for_status()

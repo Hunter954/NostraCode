@@ -27,7 +27,7 @@
     </div>
     <div class="soft-alert mini">
       <strong>Ambiente Mercado Pago</strong>
-      <p>Use credenciais de teste no Railway/local para validar. Em produção, troque pelas credenciais produtivas no painel do Mercado Pago.</p>
+      <p>Modo atual: <b>{{ mp_environment }}</b>. Em teste, use chaves TEST- e comprador/cartões de teste. Em produção, use chaves APP_USR- e compradores reais.</p>
     </div>
   </aside>
 </div>
@@ -36,7 +36,7 @@
 <script>
   const publicKey = {{ public_key|tojson }};
   const amount = {{ amount|tojson }};
-  const payerEmail = {{ invoice.client.email|tojson }};
+  const payerEmail = {{ payer_email|tojson }};
   const paymentUrl = {{ url_for('main.api_pay_invoice', invoice_id=invoice.id)|tojson }};
   const statusBox = document.getElementById('checkout-status');
 
@@ -84,7 +84,7 @@
         .then(async (response) => {
           const data = await response.json().catch(() => ({}));
           if (!response.ok || !data.ok) {
-            throw new Error(data.message || 'Pagamento recusado. Confira os dados e tente novamente.');
+            throw new Error(data.message || data.detail || 'Pagamento recusado. Confira os dados e tente novamente.');
           }
           if (data.status === 'approved') {
             showCheckoutStatus('Pagamento aprovado! Redirecionando...', 'success');

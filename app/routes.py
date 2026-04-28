@@ -5,7 +5,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db, oauth
 from .models import User, Project, Invoice, Payment, RailwayService, RailwayUsageSnapshot
-from .services.mercadopago import create_card_payment, fetch_payment, invoice_external_reference, mercadopago_configured, mercadopago_public_key
+from .services.mercadopago import create_card_payment, fetch_payment, invoice_external_reference, mercadopago_configured, mercadopago_public_key, mercadopago_environment, mercadopago_test_payer_email, validate_mercadopago_credentials
 from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period, invoice_payment_available, invoice_payable_date, refresh_invoice_status, brazil_now, brazil_today, _add_months, RAILWAY_BILLING_DAY, INVOICE_DAYS_BEFORE_BILLING_DAY, invoice_is_future_cycle
 from werkzeug.utils import secure_filename
 from authlib.integrations.base_client.errors import OAuthError
@@ -560,6 +560,11 @@ def invoice_checkout(invoice_id):
     if not mercadopago_configured():
         flash("Configure MERCADO_PAGO_PUBLIC_KEY e MERCADO_PAGO_ACCESS_TOKEN para liberar o Checkout Transparente.", "warning")
         return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
+    try:
+        validate_mercadopago_credentials()
+    except Exception as exc:
+        flash(str(exc), "warning")
+        return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
 
     invoice.mp_external_reference = invoice_external_reference(invoice)
     invoice.status = "aguardando pagamento"
@@ -569,6 +574,8 @@ def invoice_checkout(invoice_id):
         invoice=invoice,
         public_key=mercadopago_public_key(),
         amount=float(invoice.total),
+        mp_environment=mercadopago_environment(),
+        payer_email=mercadopago_test_payer_email() if mercadopago_environment() == "test" and mercadopago_test_payer_email() else invoice.client.email,
     )
 
 
@@ -584,6 +591,10 @@ def api_pay_invoice(invoice_id):
         return jsonify({"ok": False, "message": "Pagamento ainda não liberado."}), 403
     if not mercadopago_configured():
         return jsonify({"ok": False, "message": "Mercado Pago não configurado no ambiente."}), 500
+    try:
+        validate_mercadopago_credentials()
+    except Exception as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
 
     payload = request.get_json(silent=True) or {}
     idempotency_key = request.headers.get("X-Idempotency-Key") or secrets.token_urlsafe(24)
