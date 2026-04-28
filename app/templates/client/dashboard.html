@@ -9,8 +9,7 @@
       {% if invoice_payment_available(next_invoice) %}
         <form method="post" action="{{ url_for('main.pay_invoice', invoice_id=next_invoice.id) }}"><button class="btn">Pagar agora</button></form>
       {% else %}
-        <button class="btn disabled" type="button" disabled>Pagar</button>
-        <span class="muted-action">Pagável a partir de {{ invoice_payable_date(next_invoice)|datebr }}</span>
+        <span class="disabled-pay-wrap" title="Pagável a partir de {{ invoice_payable_date(next_invoice)|datebr }}" aria-label="Pagável a partir de {{ invoice_payable_date(next_invoice)|datebr }}"><button class="btn disabled" type="button" disabled>Pagar</button></span>
       {% endif %}
     </div>
   {% endif %}
@@ -19,7 +18,7 @@
   <div class="card metric"><small>Projetos</small><strong>{{ projects|length }}</strong><span>Status geral</span></div>
   <div class="card metric"><small>Custo atual</small><strong>{{ total_current|brl }}</strong><span>mês vigente</span></div>
   <div class="card metric"><small>Estimativa</small><strong>{{ total_estimated|brl }}</strong><span>fim do mês</span></div>
-  <div class="card metric"><small>Pagamento</small><strong>{{ next_invoice.status|title if next_invoice else 'Em dia' }}</strong><span>{{ next_invoice.due_date|datebr if next_invoice else 'sem pendências' }}</span></div>
+  <div class="card metric"><small>Pagamento</small><strong>{{ next_invoice.status|title if next_invoice else 'Em dia' }}</strong><span>{{ invoice_payable_date(next_invoice)|datebr if next_invoice else 'sem pendências' }}</span></div>
 </div>
 <div class="grid two gap mt">
   {% for project in projects %}

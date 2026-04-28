@@ -1,5 +1,5 @@
 <div class="table-wrap">
-  <table>
+  <table class="invoice-table">
     <thead>
       <tr>
         <th>Fatura</th>
@@ -28,7 +28,8 @@
             {% elif invoice_payment_available is defined and invoice_payment_available(invoice) %}
               <form method="post" action="{{ url_for('main.pay_invoice', invoice_id=invoice.id) }}"><button class="client-action" type="submit" title="Pagar" aria-label="Pagar fatura"><i class="bi bi-credit-card"></i></button></form>
             {% else %}
-              <span class="invoice-pay-lock"><button class="client-action disabled" type="button" disabled title="Pagamento indisponível" aria-label="Pagamento indisponível"><i class="bi bi-lock"></i></button><small>Pagável a partir de {{ invoice_payable_date(invoice)|datebr if invoice_payable_date is defined else invoice.due_date|datebr }}</small></span>
+              {% set blocked_message = 'Pagável a partir de ' ~ (invoice_payable_date(invoice)|datebr if invoice_payable_date is defined else invoice.due_date|datebr) %}
+              <span class="invoice-pay-lock" title="{{ blocked_message }}" aria-label="{{ blocked_message }}"><button class="client-action disabled" type="button" disabled title="{{ blocked_message }}" aria-label="{{ blocked_message }}"><i class="bi bi-lock"></i></button></span>
             {% endif %}
           </div>
         </td>

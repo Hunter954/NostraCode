@@ -367,9 +367,9 @@ def client_dashboard():
     refresh_invoice_collection(invoices)
     total_current = sum([p.current_cost or 0 for p in projects])
     total_estimated = sum([p.estimated_cost or 0 for p in projects])
-    next_invoice = Invoice.query.filter(Invoice.client_id == current_user.id, Invoice.status.in_(["pendente", "aguardando pagamento", "atrasado"])).order_by(Invoice.due_date.asc()).first()
-    if next_invoice:
-        refresh_invoice_collection([next_invoice])
+    open_invoices = Invoice.query.filter(Invoice.client_id == current_user.id, Invoice.status.in_(["pendente", "aguardando pagamento", "atrasado"])).all()
+    refresh_invoice_collection(open_invoices)
+    next_invoice = sorted(open_invoices, key=invoice_payable_date)[0] if open_invoices else None
     return render_template("client/dashboard.html", projects=projects, invoices=invoices, total_current=total_current, total_estimated=total_estimated, next_invoice=next_invoice, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date)
 
 

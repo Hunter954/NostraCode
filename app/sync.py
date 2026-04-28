@@ -1,5 +1,6 @@
 from datetime import datetime, date, timedelta
 import calendar
+import re
 from decimal import Decimal
 from typing import Tuple
 
@@ -184,17 +185,47 @@ def should_show_invoice(due_date: date, today: date | None = None) -> bool:
     return today >= due_date - timedelta(days=INVOICE_VISIBLE_DAYS_BEFORE_DUE)
 
 
-def invoice_payable_date(invoice: Invoice) -> date:
-    """Return the first day the client is allowed to pay this invoice."""
-    return invoice.due_date
+MONTHS_PT = {
+    "janeiro": 1, "fevereiro": 2, "marco": 3, "março": 3, "abril": 4,
+    "maio": 5, "junho": 6, "julho": 7, "agosto": 8, "setembro": 9,
+    "outubro": 10, "novembro": 11, "dezembro": 12,
+}
 
+
+def _invoice_billing_anchor(invoice: Invoice) -> date:
+    """Find the monthly Railway billing day (27) represented by the invoice."""
+    period = (invoice.period or "").strip().lower()
+
+    dates = re.findall(r"(\d{1,2})/(\d{1,2})/(\d{4})", period)
+    if dates:
+        day, month, year = map(int, dates[-1])
+        return _billing_anchor(year, month)
+
+    month_label = re.search(r"([a-zç]+)\s*(?:/|de)?\s*(\d{4})", period)
+    if month_label and month_label.group(1) in MONTHS_PT:
+        return _billing_anchor(int(month_label.group(2)), MONTHS_PT[month_label.group(1)])
+
+    base = invoice.due_date or date.today()
+    return _billing_anchor(base.year, base.month)
+
+
+def invoice_payable_date(invoice: Invoice) -> date:
+    """Return the first day the client is allowed to pay this invoice.
+
+    Payments always open five days before the Railway billing day (27).
+    Example: April cycle closes on 27/04, so payment opens on 22/04.
+    """
+    return _invoice_billing_anchor(invoice) - timedelta(days=INVOICE_DAYS_BEFORE_BILLING_DAY)
 
 def refresh_invoice_status(invoice: Invoice, today: date | None = None) -> Invoice:
     """Keep open invoice status aligned with the configured payment date."""
     today = today or date.today()
     if invoice.status == "pago":
         return invoice
-    if today > invoice_payable_date(invoice):
+    payable_date = invoice_payable_date(invoice)
+    if invoice.due_date != payable_date:
+        invoice.due_date = payable_date
+    if today > payable_date:
         invoice.status = "atrasado"
     elif invoice.status == "atrasado":
         invoice.status = "pendente"
@@ -255,11 +286,8 @@ def refresh_project_invoice(project: Project, period_start=None, period_end=None
     amount = project.estimated_cost if project.estimated_cost is not None else project.current_cost
     amount = Decimal(amount or "0.00").quantize(Decimal("0.01"))
 
-    Invoice.query.filter(
-        Invoice.project_id == project.id,
-        Invoice.status.in_(OPEN_INVOICE_STATUSES),
-        Invoice.period != period,
-    ).delete(synchronize_session=False)
+    # Keep historical/open invoices for previous cycles visible on the project.
+    # Each sync only creates or updates the current cycle invoice.
 
     invoice = Invoice.query.filter(
         Invoice.project_id == project.id,
