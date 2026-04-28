@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}Checkout - Fatura #{{ invoice.number }}{% endblock %}
+{% block content %}
+<div class="section-title">
+  <div>
+    <span class="eyebrow">Checkout Transparente</span>
+    <h1>Fatura #{{ invoice.number }}</h1>
+  </div>
+  <a class="btn ghost" href="{{ url_for('main.invoice_detail', invoice_id=invoice.id) }}"><i class="bi bi-arrow-left"></i> Voltar para fatura</a>
+</div>
+
+<div class="grid two gap checkout-grid">
+  <div class="card checkout-card">
+    <h2>Pagamento com cartão</h2>
+    <p class="muted">Preencha os dados com segurança. Os dados sensíveis do cartão são tokenizados pelo Mercado Pago e não passam pelo servidor da Nostra Codes.</p>
+    <div id="cardPaymentBrick_container" class="mp-brick-box"></div>
+    <div id="checkout-status" class="checkout-status" hidden></div>
+  </div>
+
+  <aside class="card checkout-summary">
+    <h2>Resumo</h2>
+    <div class="kv">
+      <span>Cliente</span><b>{{ invoice.client.name }}</b>
+      <span>Projeto</span><b>{{ invoice.project.name }}</b>
+      <span>Período</span><b>{{ invoice.period }}</b>
+      <span>Total</span><b class="total">{{ invoice.total|brl }}</b>
+    </div>
+    <div class="soft-alert mini">
+      <strong>Ambiente Mercado Pago</strong>
+      <p>Use credenciais de teste no Railway/local para validar. Em produção, troque pelas credenciais produtivas no painel do Mercado Pago.</p>
+    </div>
+  </aside>
+</div>
+
+<script src="https://sdk.mercadopago.com/js/v2"></script>
+<script>
+  const publicKey = {{ public_key|tojson }};
+  const amount = {{ amount|tojson }};
+  const payerEmail = {{ invoice.client.email|tojson }};
+  const paymentUrl = {{ url_for('main.api_pay_invoice', invoice_id=invoice.id)|tojson }};
+  const statusBox = document.getElementById('checkout-status');
+
+  function showCheckoutStatus(message, kind = 'info') {
+    statusBox.hidden = false;
+    statusBox.className = `checkout-status ${kind}`;
+    statusBox.textContent = message;
+  }
+
+  function newIdempotencyKey() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return `mp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  const mp = new MercadoPago(publicKey, { locale: 'pt-BR' });
+  const bricksBuilder = mp.bricks();
+
+  bricksBuilder.create('cardPayment', 'cardPaymentBrick_container', {
+    initialization: {
+      amount: amount,
+      payer: { email: payerEmail }
+    },
+    customization: {
+      visual: { style: { theme: 'dark' } },
+      paymentMethods: {
+        maxInstallments: 12
+      }
+    },
+    callbacks: {
+      onReady: () => showCheckoutStatus('Checkout carregado. Você já pode preencher os dados do cartão.', 'info'),
+      onError: (error) => {
+        console.error(error);
+        showCheckoutStatus('Não foi possível carregar o checkout. Recarregue a página ou tente novamente.', 'error');
+      },
+      onSubmit: (cardFormData) => {
+        showCheckoutStatus('Processando pagamento...', 'info');
+        return fetch(paymentUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Idempotency-Key': newIdempotencyKey()
+          },
+          body: JSON.stringify(cardFormData)
+        })
+        .then(async (response) => {
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || !data.ok) {
+            throw new Error(data.message || 'Pagamento recusado. Confira os dados e tente novamente.');
+          }
+          if (data.status === 'approved') {
+            showCheckoutStatus('Pagamento aprovado! Redirecionando...', 'success');
+          } else if (['pending', 'in_process', 'authorized'].includes(data.status)) {
+            showCheckoutStatus('Pagamento recebido e em análise. Redirecionando...', 'info');
+          } else {
+            showCheckoutStatus(`Pagamento não aprovado: ${data.status_detail || data.status || 'verifique os dados'}.`, 'error');
+          }
+          window.location.href = data.redirect_url;
+        })
+        .catch((error) => {
+          console.error(error);
+          showCheckoutStatus(error.message || 'Erro ao processar pagamento.', 'error');
+          throw error;
+        });
+      }
+    }
+  });
+</script>
+{% endblock %}

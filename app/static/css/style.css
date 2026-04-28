@@ -990,3 +990,6 @@ body::before{display:none!important}
 .page:has(> .hero-sales.premium-hero.hero-centered) > .hero-sales.premium-hero.hero-centered{
   margin-top:0!important;
 }
+
+/* Mercado Pago Checkout Transparente */
+.checkout-grid{align-items:start}.checkout-card h2,.checkout-summary h2{margin-top:0}.mp-brick-box{margin-top:18px;overflow:hidden;border-radius:20px;background:rgba(255,255,255,.04);padding:12px;border:1px solid rgba(196,181,253,.12)}.checkout-status{margin-top:16px;padding:14px 16px;border-radius:16px;border:1px solid rgba(196,181,253,.16);background:rgba(124,58,237,.12);color:#ddd6fe;font-weight:800}.checkout-status.success{background:rgba(52,211,153,.12);border-color:rgba(52,211,153,.24);color:#a7f3d0}.checkout-status.error{background:rgba(251,113,133,.12);border-color:rgba(251,113,133,.28);color:#fecdd3}.checkout-status.info{background:rgba(124,58,237,.12);border-color:rgba(196,181,253,.18);color:#ddd6fe}.soft-alert.mini{margin-top:22px}.soft-alert.mini p{margin-bottom:0}@media(max-width:900px){.checkout-grid{grid-template-columns:1fr}.mp-brick-box{padding:8px}}
