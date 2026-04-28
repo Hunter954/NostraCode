@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
 from .extensions import db, login_manager, oauth
-from .models import User, Project, Invoice, RailwayService, RailwayUsageSnapshot
+from .models import User, Project, Invoice, Payment, ProjectSubscription, RailwayService, RailwayUsageSnapshot
 
 
 def create_app():
@@ -87,7 +87,7 @@ def create_app():
 
 
 def start_railway_auto_sync(app):
-    """Start hourly Railway synchronization inside the web process."""
+    """Start background jobs for Railway sync and prepaid subscription invoices."""
     enabled = os.getenv("ENABLE_AUTO_RAILWAY_SYNC", "true").lower() not in {"0", "false", "no", "off"}
     if not enabled:
         return
@@ -109,6 +109,23 @@ def start_railway_auto_sync(app):
             except Exception as exc:
                 app.logger.exception("Railway auto sync failed: %s", exc)
 
+    def run_subscription_invoices():
+        with app.app_context():
+            try:
+                db.create_all()
+                ensure_schema_updates()
+                from .routes import generate_subscription_paid_invoices
+                today = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
+                subscriptions = ProjectSubscription.query.filter(ProjectSubscription.status == "ativa").all()
+                created = 0
+                for subscription in subscriptions:
+                    created += generate_subscription_paid_invoices(subscription, until_date=today)
+                db.session.commit()
+                app.logger.info("Subscription invoice job finished: %s invoices created", created)
+            except Exception as exc:
+                db.session.rollback()
+                app.logger.exception("Subscription invoice job failed: %s", exc)
+
     scheduler.add_job(
         run_sync,
         "interval",
@@ -118,6 +135,17 @@ def start_railway_auto_sync(app):
         max_instances=1,
         coalesce=True,
         next_run_time=datetime.now(ZoneInfo("America/Sao_Paulo")),
+    )
+    scheduler.add_job(
+        run_subscription_invoices,
+        "cron",
+        day="22",
+        hour=10,
+        minute=0,
+        id="subscription-paid-invoices",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
     scheduler.start()
     atexit.register(lambda: scheduler.shutdown(wait=False))

@@ -4,8 +4,8 @@ from functools import wraps
 from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, jsonify, current_app, send_from_directory, send_file, session
 from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db, oauth
-from .models import User, Project, Invoice, Payment, RailwayService, RailwayUsageSnapshot
-from .services.mercadopago import create_checkout_preference, checkout_redirect_url, fetch_payment, invoice_external_reference, mercadopago_configured
+from .models import User, Project, Invoice, Payment, ProjectSubscription, RailwayService, RailwayUsageSnapshot
+from .services.mercadopago import create_checkout_preference, create_subscription_preference, checkout_redirect_url, fetch_payment, refund_payment, invoice_external_reference, mercadopago_configured
 from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period, invoice_payment_available, invoice_payable_date, refresh_invoice_status, brazil_now, brazil_today, _add_months, RAILWAY_BILLING_DAY, INVOICE_DAYS_BEFORE_BILLING_DAY, invoice_is_future_cycle
 from werkzeug.utils import secure_filename
 from authlib.integrations.base_client.errors import OAuthError
@@ -95,6 +95,92 @@ def refresh_invoice_collection(invoices):
 def format_brl_plain(value):
     value = Decimal(value or "0.00")
     return f"R$ {value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+SUBSCRIPTION_PLANS = {
+    1: Decimal("20.00"),
+    6: Decimal("100.00"),
+    12: Decimal("150.00"),
+    28: Decimal("250.00"),
+}
+
+
+def subscription_monthly_amount(months):
+    return (SUBSCRIPTION_PLANS[int(months)] / Decimal(int(months))).quantize(Decimal("0.01"))
+
+
+def subscription_next_day22(base_date=None):
+    base_date = base_date or brazil_today()
+    candidate = date(base_date.year, base_date.month, 22)
+    if base_date.day > 22:
+        next_month = _add_months(candidate, 1)
+        candidate = date(next_month.year, next_month.month, 22)
+    return candidate
+
+
+def active_project_subscription(project_id):
+    today = brazil_today()
+    return ProjectSubscription.query.filter(
+        ProjectSubscription.project_id == project_id,
+        ProjectSubscription.status == "ativa",
+        ProjectSubscription.starts_at <= today,
+        ProjectSubscription.ends_at >= today,
+    ).order_by(ProjectSubscription.ends_at.desc()).first()
+
+
+def subscription_external_reference(subscription):
+    return f"subscription-{subscription.id}"
+
+
+def activate_subscription(subscription, payment_id=None):
+    today = brazil_today()
+    subscription.status = "ativa"
+    subscription.payment_id = str(payment_id) if payment_id else subscription.payment_id
+    subscription.starts_at = subscription.starts_at or today
+    end_anchor = _add_months(subscription.starts_at, subscription.plan_months)
+    subscription.ends_at = subscription.ends_at or (end_anchor - timedelta(days=1))
+    subscription.next_invoice_date = subscription.next_invoice_date or subscription_next_day22(subscription.starts_at)
+    subscription.activated_at = subscription.activated_at or brazil_now()
+    clear_unpaid_project_invoices(subscription.project)
+    generate_subscription_paid_invoices(subscription)
+
+
+def generate_subscription_paid_invoices(subscription, until_date=None):
+    until_date = until_date or brazil_today()
+    created = 0
+    while subscription.status == "ativa" and subscription.next_invoice_date and subscription.next_invoice_date <= until_date and subscription.next_invoice_date <= subscription.ends_at:
+        period = format_billing_period(subscription.next_invoice_date)
+        exists = Invoice.query.filter_by(project_id=subscription.project_id, period=period).first()
+        if not exists:
+            invoice = Invoice(
+                number=f"SUB-{subscription.project_id}-{subscription.next_invoice_date.strftime('%Y%m')}",
+                client_id=subscription.client_id,
+                project_id=subscription.project_id,
+                period=period,
+                railway_cost=subscription.monthly_invoice_amount,
+                management_fee=Decimal("0.00"),
+                discounts=Decimal("0.00"),
+                fines=Decimal("0.00"),
+                total=subscription.monthly_invoice_amount,
+                status="pago",
+                due_date=subscription.next_invoice_date,
+                mp_external_reference=subscription.mp_external_reference,
+            )
+            db.session.add(invoice)
+            db.session.flush()
+            db.session.add(Payment(
+                invoice_id=invoice.id,
+                amount=invoice.total,
+                status="pago",
+                method="assinatura pre-paga",
+                transaction_code=f"subscription-{subscription.id}-{subscription.next_invoice_date.strftime('%Y%m')}",
+                paid_at=datetime.combine(subscription.next_invoice_date, datetime.min.time()).replace(hour=10),
+            ))
+            created += 1
+        subscription.next_invoice_date = _add_months(subscription.next_invoice_date, 1)
+    if subscription.next_invoice_date and subscription.next_invoice_date > subscription.ends_at:
+        subscription.status = "finalizada"
+    return created
 
 
 def build_receipt_pdf(invoice, payment):
@@ -489,8 +575,91 @@ def project_detail(project_id):
     upcoming_invoices = build_upcoming_invoices([project])
     cycle_start, cycle_end = current_billing_cycle()
     billing_period = format_billing_period(cycle_start, cycle_end)
-    return render_template("client/project_detail.html", project=project, invoices=invoices, upcoming_invoices=upcoming_invoices, snapshots=snapshots, usage_chart=usage_chart, billing_period=billing_period, billing_due_date=cycle_end, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date)
+    return render_template("client/project_detail.html", project=project, invoices=invoices, upcoming_invoices=upcoming_invoices, snapshots=snapshots, usage_chart=usage_chart, billing_period=billing_period, billing_due_date=cycle_end, invoice_payment_available=invoice_payment_available, invoice_payable_date=invoice_payable_date, subscription_plans=SUBSCRIPTION_PLANS, active_subscription=active_project_subscription(project.id), subscription_monthly_amount=subscription_monthly_amount)
 
+
+@bp.route("/projects/<int:project_id>/subscription/checkout", methods=["POST"])
+@login_required
+def project_subscription_checkout(project_id):
+    project = Project.query.get_or_404(project_id)
+    if not current_user.is_admin and project.client_id != current_user.id:
+        abort(403)
+
+    try:
+        months = int(request.form.get("months", "0"))
+    except ValueError:
+        months = 0
+    if months not in SUBSCRIPTION_PLANS:
+        flash("Escolha um plano de assinatura valido.", "warning")
+        return redirect(url_for("main.project_detail", project_id=project.id))
+    if not mercadopago_configured():
+        flash("Mercado Pago nao configurado. Configure MERCADO_PAGO_ACCESS_TOKEN.", "danger")
+        return redirect(url_for("main.project_detail", project_id=project.id))
+
+    subscription = ProjectSubscription(
+        project_id=project.id,
+        client_id=project.client_id,
+        plan_months=months,
+        amount=SUBSCRIPTION_PLANS[months],
+        monthly_invoice_amount=subscription_monthly_amount(months),
+        status="pendente",
+        starts_at=brazil_today(),
+        next_invoice_date=subscription_next_day22(brazil_today()),
+    )
+    db.session.add(subscription)
+    db.session.flush()
+    subscription.mp_external_reference = subscription_external_reference(subscription)
+
+    try:
+        preference = create_subscription_preference(subscription)
+    except Exception as exc:
+        db.session.rollback()
+        current_app.logger.exception("Erro ao criar assinatura Mercado Pago: %s", exc)
+        flash(str(exc), "danger")
+        return redirect(url_for("main.project_detail", project_id=project.id))
+
+    subscription.mp_preference_id = preference.get("id")
+    db.session.commit()
+    redirect_url = checkout_redirect_url(preference)
+    return redirect(redirect_url)
+
+
+@bp.route("/projects/<int:project_id>/subscription/return/<status>")
+@login_required
+def project_subscription_return(project_id, status):
+    project = Project.query.get_or_404(project_id)
+    if not current_user.is_admin and project.client_id != current_user.id:
+        abort(403)
+    subscription = ProjectSubscription.query.get_or_404(int(request.args.get("subscription_id", "0")))
+    if subscription.project_id != project.id:
+        abort(403)
+
+    payment_id = request.args.get("payment_id") or request.args.get("collection_id")
+    if payment_id:
+        try:
+            payment_data = fetch_payment(payment_id)
+            if payment_data.get("status") == "approved":
+                activate_subscription(subscription, payment_id=payment_id)
+                db.session.commit()
+                flash("Assinatura ativada. As faturas mensais deste projeto entram como pagas automaticamente todo dia 22 as 10h.", "success")
+            elif payment_data.get("status") in {"pending", "in_process"}:
+                subscription.status = "aguardando pagamento"
+                db.session.commit()
+                flash("Pagamento da assinatura pendente. Aguarde a confirmacao do Mercado Pago.", "warning")
+            else:
+                subscription.status = "cancelada"
+                db.session.commit()
+                flash("Pagamento da assinatura nao aprovado.", "danger")
+        except Exception as exc:
+            current_app.logger.exception("Erro ao confirmar assinatura Mercado Pago: %s", exc)
+            flash("Assinatura enviada. Aguarde a confirmacao do Mercado Pago.", "warning")
+    elif status == "success":
+        flash("Assinatura enviada. Aguarde a confirmacao do Mercado Pago.", "success")
+    elif status == "pending":
+        flash("Pagamento da assinatura pendente.", "warning")
+    else:
+        flash("Pagamento da assinatura nao concluido.", "danger")
+    return redirect(url_for("main.project_detail", project_id=project.id))
 @bp.route("/invoices")
 @login_required
 def invoices():
@@ -962,6 +1131,33 @@ def admin_mark_paid(invoice_id):
     return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
 
 
+
+@bp.route("/admin/invoices/<int:invoice_id>/refund", methods=["POST"])
+@login_required
+@admin_required
+def admin_refund_invoice(invoice_id):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    payment = Payment.query.filter_by(invoice_id=invoice.id, status="pago").order_by(Payment.paid_at.desc()).first()
+    if not payment:
+        flash("Nenhum pagamento aprovado encontrado para estornar.", "warning")
+        return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
+
+    should_call_mp = payment.transaction_code and not str(payment.transaction_code).startswith(("manual-", "subscription-"))
+    if should_call_mp:
+        try:
+            refund_payment(payment.transaction_code)
+        except Exception as exc:
+            current_app.logger.exception("Erro ao estornar pagamento Mercado Pago: %s", exc)
+            flash(f"Mercado Pago nao confirmou o estorno: {exc}", "danger")
+            return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
+
+    payment.status = "estornado"
+    invoice.status = "atrasado" if invoice.due_date and invoice.due_date < brazil_today() else "pendente"
+    invoice.payment_link = None
+    invoice.mp_preference_id = None
+    db.session.commit()
+    flash("Pagamento estornado/recusado e fatura reaberta.", "success")
+    return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
 @bp.route("/webhooks/mercadopago", methods=["POST", "GET"])
 def mercadopago_webhook():
     payload = request.get_json(silent=True) or request.args.to_dict()
@@ -973,6 +1169,11 @@ def mercadopago_webhook():
     if not payment_data:
         return jsonify({"ok": True, "demo": True})
     external_reference = payment_data.get("external_reference")
+    subscription = ProjectSubscription.query.filter_by(mp_external_reference=external_reference).first()
+    if subscription and payment_data.get("status") == "approved":
+        activate_subscription(subscription, payment_id=payment_id)
+        db.session.commit()
+        return jsonify({"ok": True, "type": "subscription"})
     invoice = Invoice.query.filter_by(mp_external_reference=external_reference).first()
     if invoice and payment_data.get("status") == "approved":
         invoice.status = "pago"

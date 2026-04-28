@@ -2,5 +2,32 @@
 {% block title %}Pagamentos{% endblock %}
 {% block content %}
 <div class="section-title"><div><span class="eyebrow">Histórico</span><h1>Pagamentos</h1></div></div>
-<div class="card"><div class="table-wrap"><table><thead><tr><th>Data</th><th>Fatura</th><th>Valor</th><th>Status</th><th>Método</th><th>Transação</th></tr></thead><tbody>{% for payment in payments %}<tr><td>{{ payment.paid_at.strftime('%d/%m/%Y %H:%M') }}</td><td>#{{ payment.invoice.number }}</td><td>{{ payment.amount|brl }}</td><td><span class="pill pago">{{ payment.status }}</span></td><td>{{ payment.method }}</td><td>{{ payment.transaction_code }}</td></tr>{% else %}<tr><td colspan="6">Nenhum pagamento ainda.</td></tr>{% endfor %}</tbody></table></div></div>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Data</th><th>Fatura</th><th>Valor</th><th>Status</th><th>Método</th><th>Transação</th>{% if current_user.is_admin %}<th>Ações</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for payment in payments %}
+        <tr>
+          <td>{{ payment.paid_at.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td><a href="{{ url_for('main.invoice_detail', invoice_id=payment.invoice.id) }}">#{{ payment.invoice.number }}</a></td>
+          <td>{{ payment.amount|brl }}</td>
+          <td><span class="pill {{ payment.status|replace(' ', '-') }}">{{ payment.status }}</span></td>
+          <td>{{ payment.method }}</td>
+          <td>{{ payment.transaction_code }}</td>
+          {% if current_user.is_admin %}
+          <td>
+            {% if payment.status == 'pago' %}
+            <form method="post" action="{{ url_for('main.admin_refund_invoice', invoice_id=payment.invoice.id) }}" onsubmit="return confirm('Estornar/recusar este pagamento e reabrir a fatura?');">
+              <button class="client-action danger-action" type="submit" title="Estornar e reabrir"><i class="bi bi-arrow-counterclockwise"></i></button>
+            </form>
+            {% else %}-{% endif %}
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}<tr><td colspan="{{ 7 if current_user.is_admin else 6 }}">Nenhum pagamento ainda.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}

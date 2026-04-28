@@ -25,6 +25,11 @@
             <a class="client-action" href="{{ url_for('main.invoice_detail', invoice_id=invoice.id) }}" title="Detalhes" aria-label="Detalhes da fatura"><i class="bi bi-eye"></i></a>
             {% if invoice.status == 'pago' %}
               <a class="client-action" href="{{ url_for('main.invoice_receipt', invoice_id=invoice.id) }}" title="Baixar recibo" aria-label="Baixar recibo"><i class="bi bi-file-earmark-pdf"></i></a>
+              {% if current_user.is_admin %}
+                <form method="post" action="{{ url_for('main.admin_refund_invoice', invoice_id=invoice.id) }}" onsubmit="return confirm('Estornar/recusar este pagamento e reabrir a fatura?');">
+                  <button class="client-action danger-action" type="submit" title="Estornar e reabrir" aria-label="Estornar e reabrir fatura"><i class="bi bi-arrow-counterclockwise"></i></button>
+                </form>
+              {% endif %}
             {% elif invoice_payment_available is defined and invoice_payment_available(invoice) %}
               <form method="post" action="{{ url_for('main.pay_invoice', invoice_id=invoice.id) }}"><button class="client-action" type="submit" title="Pagar" aria-label="Pagar fatura"><i class="bi bi-credit-card"></i></button></form>
             {% else %}

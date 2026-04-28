@@ -119,6 +119,29 @@ class Invoice(db.Model):
     payments = db.relationship("Payment", backref="invoice", lazy=True)
 
 
+class ProjectSubscription(db.Model):
+    __tablename__ = "project_subscriptions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey("projects.id"), nullable=False, index=True)
+    client_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    plan_months = db.Column(db.Integer, nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    monthly_invoice_amount = db.Column(db.Numeric(10, 2), default=Decimal("0.00"))
+    status = db.Column(db.String(40), default="pendente", index=True)
+    starts_at = db.Column(db.Date)
+    ends_at = db.Column(db.Date)
+    next_invoice_date = db.Column(db.Date)
+    mp_preference_id = db.Column(db.String(180))
+    mp_external_reference = db.Column(db.String(180), unique=True, index=True)
+    payment_id = db.Column(db.String(180))
+    created_at = db.Column(db.DateTime, default=brazil_now_model)
+    activated_at = db.Column(db.DateTime)
+
+    project = db.relationship("Project", backref=db.backref("subscriptions", lazy=True))
+    client = db.relationship("User", backref=db.backref("project_subscriptions", lazy=True))
+
+
 class Payment(db.Model):
     __tablename__ = "payments"
 

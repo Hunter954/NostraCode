@@ -45,6 +45,31 @@
   {% endif %}
 </div>
 
+
+<div class="card mt subscription-card">
+  <div class="subscription-head">
+    <div>
+      <span class="eyebrow">Assinatura do projeto</span>
+      <h2>Escolha um plano pre-pago</h2>
+      <p>O cliente paga uma vez pelo Checkout Pro e fica tranquilo. Todo dia 22 as 10h a fatura mensal do projeto entra automaticamente como paga, com recibo disponível.</p>
+    </div>
+    {% if active_subscription %}
+      <span class="pill pago">Ativa até {{ active_subscription.ends_at|datebr }}</span>
+    {% endif %}
+  </div>
+  <div class="subscription-plans">
+    {% for months, price in subscription_plans.items() %}
+      <form method="post" action="{{ url_for('main.project_subscription_checkout', project_id=project.id) }}" class="subscription-plan {{ 'featured' if months == 12 else '' }}">
+        <input type="hidden" name="months" value="{{ months }}">
+        {% if months == 12 %}<span class="plan-badge">Mais escolhido</span>{% endif %}
+        <strong>{{ months }} {{ 'mês' if months == 1 else 'meses' }}</strong>
+        <span class="plan-price">{{ price|brl }}</span>
+        <small>{{ subscription_monthly_amount(months)|brl }}/mês em faturas pagas</small>
+        <button class="btn small" type="submit"><i class="bi bi-shield-check"></i> Assinar</button>
+      </form>
+    {% endfor %}
+  </div>
+</div>
 <div class="grid two gap mt">
   <div class="card usage-card">
     <div class="usage-head">

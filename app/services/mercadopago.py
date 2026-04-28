@@ -174,3 +174,80 @@ def fetch_payment(payment_id):
     )
     response.raise_for_status()
     return response.json()
+
+
+def create_subscription_preference(subscription, idempotency_key=None):
+    """Create a Checkout Pro preference for a prepaid project subscription package."""
+    validate_mercadopago_credentials()
+
+    base_url = _public_base_url()
+    amount = Decimal(subscription.amount).quantize(Decimal("0.01"))
+    external_reference = subscription.mp_external_reference
+
+    payload = {
+        "items": [
+            {
+                "id": f"subscription-{subscription.id}",
+                "title": f"Assinatura {subscription.plan_months} meses - {subscription.project.name}",
+                "description": "Nostra Codes - plano pre-pago por projeto",
+                "quantity": 1,
+                "currency_id": "BRL",
+                "unit_price": float(amount),
+            }
+        ],
+        "payer": {
+            "name": subscription.client.name,
+            "email": subscription.client.email,
+        },
+        "external_reference": external_reference,
+        "notification_url": f"{base_url}/webhooks/mercadopago",
+        "back_urls": {
+            "success": f"{base_url}/projects/{subscription.project_id}/subscription/return/success?subscription_id={subscription.id}",
+            "failure": f"{base_url}/projects/{subscription.project_id}/subscription/return/failure?subscription_id={subscription.id}",
+            "pending": f"{base_url}/projects/{subscription.project_id}/subscription/return/pending?subscription_id={subscription.id}",
+        },
+        "auto_return": "approved",
+        "metadata": {
+            "type": "project_subscription",
+            "subscription_id": subscription.id,
+            "project_id": subscription.project_id,
+            "plan_months": subscription.plan_months,
+            "mp_environment": mercadopago_environment(),
+        },
+    }
+
+    statement_descriptor = os.getenv("MERCADO_PAGO_STATEMENT_DESCRIPTOR")
+    if statement_descriptor:
+        payload["statement_descriptor"] = statement_descriptor[:22]
+
+    response = requests.post(
+        f"{MP_API_BASE}/checkout/preferences",
+        json=payload,
+        headers=_headers(idempotency_key or str(uuid.uuid4())),
+        timeout=20,
+    )
+    if response.status_code >= 400:
+        try:
+            error_payload = response.json()
+        except Exception:
+            error_payload = {"message": response.text, "status": response.status_code}
+        raise MercadoPagoPaymentError(error_payload)
+    return response.json()
+
+
+def refund_payment(payment_id, idempotency_key=None):
+    """Request a full refund for a Mercado Pago payment."""
+    validate_mercadopago_credentials()
+    response = requests.post(
+        f"{MP_API_BASE}/v1/payments/{payment_id}/refunds",
+        json={},
+        headers=_headers(idempotency_key or str(uuid.uuid4())),
+        timeout=20,
+    )
+    if response.status_code >= 400:
+        try:
+            error_payload = response.json()
+        except Exception:
+            error_payload = {"message": response.text, "status": response.status_code}
+        raise MercadoPagoPaymentError(error_payload)
+    return response.json()
