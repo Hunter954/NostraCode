@@ -5,7 +5,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_user, logout_user, login_required, current_user
 from .extensions import db, oauth
 from .models import User, Project, Invoice, Payment, RailwayService, RailwayUsageSnapshot
-from .services.mercadopago import create_card_payment, fetch_payment, invoice_external_reference, mercadopago_configured, mercadopago_public_key, mercadopago_environment, validate_mercadopago_credentials
+from .services.mercadopago import create_checkout_preference, checkout_redirect_url, fetch_payment, invoice_external_reference, mercadopago_configured
 from .sync import clear_unpaid_project_invoices, sync_project_from_railway, sync_all_projects, current_billing_cycle, format_billing_period, invoice_payment_available, invoice_payable_date, refresh_invoice_status, brazil_now, brazil_today, _add_months, RAILWAY_BILLING_DAY, INVOICE_DAYS_BEFORE_BILLING_DAY, invoice_is_future_cycle
 from werkzeug.utils import secure_filename
 from authlib.integrations.base_client.errors import OAuthError
@@ -558,25 +558,23 @@ def invoice_checkout(invoice_id):
         flash(f"O pagamento desta fatura será liberado em {invoice_payable_date(invoice).strftime('%d/%m/%Y')}.", "warning")
         return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
     if not mercadopago_configured():
-        flash("Configure MERCADO_PAGO_PUBLIC_KEY e MERCADO_PAGO_ACCESS_TOKEN para liberar o Checkout Transparente.", "warning")
+        flash("Configure MERCADO_PAGO_ACCESS_TOKEN para liberar o Checkout Pro.", "warning")
         return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
     try:
-        validate_mercadopago_credentials()
+        preference = create_checkout_preference(invoice)
+        redirect_url = checkout_redirect_url(preference)
+        if not redirect_url:
+            raise RuntimeError("Mercado Pago nao retornou link de checkout.")
     except Exception as exc:
-        flash(str(exc), "warning")
+        current_app.logger.exception("Erro ao criar preferencia Mercado Pago: %s", exc)
+        flash(str(exc), "danger")
         return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
 
     invoice.mp_external_reference = invoice_external_reference(invoice)
+    invoice.payment_link = redirect_url
     invoice.status = "aguardando pagamento"
     db.session.commit()
-    return render_template(
-        "client/checkout.html",
-        invoice=invoice,
-        public_key=mercadopago_public_key(),
-        amount=float(invoice.total),
-        mp_environment=mercadopago_environment(),
-        payer_email=invoice.client.email,
-    )
+    return redirect(redirect_url)
 
 
 @bp.route("/api/invoices/<int:invoice_id>/pay", methods=["POST"])
@@ -586,54 +584,73 @@ def api_pay_invoice(invoice_id):
     if not current_user.is_admin and invoice.client_id != current_user.id:
         abort(403)
     if invoice.status == "pago":
-        return jsonify({"ok": True, "status": "approved", "redirect_url": url_for("main.invoice_detail", invoice_id=invoice.id)})
+        return jsonify({"ok": True, "redirect_url": url_for("main.invoice_detail", invoice_id=invoice.id)})
     if not invoice_payment_available(invoice):
         return jsonify({"ok": False, "message": "Pagamento ainda não liberado."}), 403
     if not mercadopago_configured():
         return jsonify({"ok": False, "message": "Mercado Pago não configurado no ambiente."}), 500
     try:
-        validate_mercadopago_credentials()
+        preference = create_checkout_preference(invoice)
+        redirect_url = checkout_redirect_url(preference)
+        if not redirect_url:
+            raise RuntimeError("Mercado Pago nao retornou link de checkout.")
     except Exception as exc:
+        current_app.logger.exception("Erro ao criar preferencia Mercado Pago: %s", exc)
         return jsonify({"ok": False, "message": str(exc)}), 400
 
-    payload = request.get_json(silent=True) or {}
-    idempotency_key = request.headers.get("X-Idempotency-Key") or secrets.token_urlsafe(24)
-    try:
-        payment_data = create_card_payment(invoice, payload, idempotency_key=idempotency_key)
-    except Exception as exc:
-        current_app.logger.exception("Erro ao criar pagamento Mercado Pago: %s", exc)
-        return jsonify({"ok": False, "message": "Não foi possível processar o pagamento.", "detail": str(exc)}), 400
-
-    mp_status = payment_data.get("status")
-    payment_id = str(payment_data.get("id"))
-    invoice.mp_external_reference = payment_data.get("external_reference") or invoice_external_reference(invoice)
-
-    if mp_status == "approved":
-        invoice.status = "pago"
-        exists = Payment.query.filter_by(transaction_code=payment_id).first()
-        if not exists:
-            db.session.add(Payment(
-                invoice_id=invoice.id,
-                amount=Decimal(str(payment_data.get("transaction_amount", invoice.total))),
-                status="pago",
-                method=payment_data.get("payment_method_id"),
-                transaction_code=payment_id,
-                receipt_url=(payment_data.get("transaction_details") or {}).get("external_resource_url"),
-                paid_at=brazil_now(),
-            ))
-    elif mp_status in {"pending", "in_process", "authorized"}:
-        invoice.status = "aguardando pagamento"
-    else:
-        invoice.status = "pendente"
-
+    invoice.mp_external_reference = invoice_external_reference(invoice)
+    invoice.payment_link = redirect_url
+    invoice.status = "aguardando pagamento"
     db.session.commit()
-    return jsonify({
-        "ok": True,
-        "status": mp_status,
-        "status_detail": payment_data.get("status_detail"),
-        "payment_id": payment_id,
-        "redirect_url": url_for("main.invoice_detail", invoice_id=invoice.id),
-    })
+    return jsonify({"ok": True, "redirect_url": redirect_url})
+
+
+@bp.route("/invoices/<int:invoice_id>/payment/<status>")
+@login_required
+def invoice_payment_return(invoice_id, status):
+    invoice = Invoice.query.get_or_404(invoice_id)
+    if not current_user.is_admin and invoice.client_id != current_user.id:
+        abort(403)
+
+    payment_id = request.args.get("payment_id") or request.args.get("collection_id")
+    if payment_id:
+        try:
+            payment_data = fetch_payment(payment_id)
+            mp_status = payment_data.get("status")
+            invoice.mp_external_reference = payment_data.get("external_reference") or invoice_external_reference(invoice)
+            if mp_status == "approved":
+                invoice.status = "pago"
+                exists = Payment.query.filter_by(transaction_code=str(payment_id)).first()
+                if not exists:
+                    db.session.add(Payment(
+                        invoice_id=invoice.id,
+                        amount=Decimal(str(payment_data.get("transaction_amount", invoice.total))),
+                        status="pago",
+                        method=payment_data.get("payment_method_id"),
+                        transaction_code=str(payment_id),
+                        receipt_url=(payment_data.get("transaction_details") or {}).get("external_resource_url"),
+                        paid_at=brazil_now(),
+                    ))
+                flash("Pagamento aprovado!", "success")
+            elif mp_status in {"pending", "in_process", "authorized"}:
+                invoice.status = "aguardando pagamento"
+                flash("Pagamento recebido e aguardando confirmação do Mercado Pago.", "warning")
+            else:
+                invoice.status = "pendente"
+                flash("Pagamento não aprovado ou cancelado. Você pode tentar novamente.", "danger")
+            db.session.commit()
+        except Exception as exc:
+            current_app.logger.exception("Erro ao consultar retorno Mercado Pago: %s", exc)
+            flash("Voltamos do Mercado Pago, mas ainda não foi possível confirmar o pagamento. Aguarde o webhook ou tente atualizar mais tarde.", "warning")
+    else:
+        if status == "success":
+            flash("Pagamento enviado. Aguarde a confirmação do Mercado Pago.", "success")
+        elif status == "pending":
+            flash("Pagamento pendente. Aguarde a confirmação do Mercado Pago.", "warning")
+        else:
+            flash("Pagamento não concluído. Você pode tentar novamente.", "danger")
+    return redirect(url_for("main.invoice_detail", invoice_id=invoice.id))
+
 
 @bp.route("/payments")
 @login_required

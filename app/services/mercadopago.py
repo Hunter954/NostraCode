@@ -20,6 +20,7 @@ class MercadoPagoPaymentError(RuntimeError):
 
 
 def mercadopago_public_key():
+    # Mantido por compatibilidade. Checkout Pro nao precisa da Public Key no frontend.
     return os.getenv("MERCADO_PAGO_PUBLIC_KEY") or os.getenv("MP_PUBLIC_KEY")
 
 
@@ -33,28 +34,25 @@ def mercadopago_environment():
 
 
 def mercadopago_test_payer_email():
-    # Mantido apenas por compatibilidade com ambientes que ja tenham a variavel.
-    # O fluxo de cartao/Brick nao usa esta variavel automaticamente.
+    # Checkout Pro nao precisa desta variavel; mantida para nao quebrar ambientes existentes.
     return (os.getenv("MERCADO_PAGO_TEST_PAYER_EMAIL") or "").strip()
 
 
 def mercadopago_configured():
-    return bool(mercadopago_public_key() and mercadopago_access_token())
+    # Checkout Pro precisa somente do Access Token no backend.
+    return bool(mercadopago_access_token())
 
 
 def validate_mercadopago_credentials():
-    public_key = mercadopago_public_key()
     access_token = mercadopago_access_token()
     environment = mercadopago_environment()
 
-    if not public_key or not access_token:
-        raise MercadoPagoConfigError("Configure MERCADO_PAGO_PUBLIC_KEY e MERCADO_PAGO_ACCESS_TOKEN.")
+    if not access_token:
+        raise MercadoPagoConfigError("Configure MERCADO_PAGO_ACCESS_TOKEN para usar o Checkout Pro.")
 
     if environment not in {"test", "production", "prod", "live"}:
         raise MercadoPagoConfigError("MERCADO_PAGO_ENVIRONMENT deve ser test ou production.")
 
-    # O Mercado Pago pode exibir credenciais de teste com prefixo APP_USR-.
-    # Nao valide ambiente pelo prefixo; deixe a API validar o par de credenciais.
     if environment in {"production", "prod", "live"} and access_token.startswith("TEST-"):
         raise MercadoPagoConfigError(
             "Ambiente production nao pode usar ACCESS TOKEN de teste. "
@@ -73,8 +71,9 @@ def _headers(idempotency_key=None):
     headers = {
         "Authorization": f"Bearer {mercadopago_access_token()}",
         "Content-Type": "application/json",
-        "X-Idempotency-Key": idempotency_key or str(uuid.uuid4()),
     }
+    if idempotency_key:
+        headers["X-Idempotency-Key"] = idempotency_key
     return headers
 
 
@@ -89,46 +88,49 @@ def humanize_mercadopago_error(error_payload):
 
     if "unauthorized use of live credentials" in combined:
         return (
-            "Mercado Pago recusou por mistura de ambiente real/teste. Para pagamento com cartao no Checkout Transparente/Brick, "
-            "use as credenciais da tela Credenciais de teste da sua conta real e preencha no checkout um e-mail de pagador comum, "
-            "diferente do e-mail da sua conta Mercado Pago. Nao force e-mail de conta de teste compradora no Brick de cartao."
+            "Mercado Pago recusou por mistura de ambiente real/teste. No Checkout Pro, use o ACCESS TOKEN da tela "
+            "Credenciais de teste para testar, ou mude MERCADO_PAGO_ENVIRONMENT=production e use credenciais de producao."
         )
     if "invalid access token" in combined or "access token" in combined or error_payload.get("status") == 401:
-        return "Mercado Pago recusou as credenciais. Confira se o ACCESS TOKEN pertence a mesma aplicacao da PUBLIC KEY."
+        return "Mercado Pago recusou as credenciais. Confira se o ACCESS TOKEN pertence a aplicacao correta."
     return error_payload.get("message") or "Mercado Pago recusou a transacao."
 
 
-def create_card_payment(invoice, payment_data, idempotency_key=None):
-    """Create a Checkout Transparente payment using data returned by Card Payment Brick."""
+def _public_base_url():
+    return (os.getenv("PUBLIC_BASE_URL") or os.getenv("BASE_URL") or "http://localhost:5000").rstrip("/")
+
+
+def create_checkout_preference(invoice, idempotency_key=None):
+    """Create a Mercado Pago Checkout Pro preference and return the API payload."""
     validate_mercadopago_credentials()
 
-    token = payment_data.get("token")
-    payment_method_id = payment_data.get("payment_method_id")
-    installments = payment_data.get("installments") or 1
-    issuer_id = payment_data.get("issuer_id")
-    payer = payment_data.get("payer") or {}
-    payer_email = payer.get("email") or invoice.client.email
-
-    # No Card Payment Brick, use um e-mail comum de pagador, diferente do e-mail
-    # da conta Mercado Pago vendedora. Nao substitua automaticamente por conta
-    # de teste compradora, pois isso pode causar mistura real/teste nesse fluxo.
-    if not token or not payment_method_id or not payer_email:
-        raise ValueError("Dados de pagamento incompletos.")
-
-    base_url = os.getenv("PUBLIC_BASE_URL", "http://localhost:5000").rstrip("/")
+    base_url = _public_base_url()
     external_reference = invoice_external_reference(invoice)
+    amount = Decimal(invoice.total).quantize(Decimal("0.01"))
 
     payload = {
-        "transaction_amount": float(Decimal(invoice.total).quantize(Decimal("0.01"))),
-        "token": token,
-        "description": f"Fatura {invoice.number} - {invoice.project.name}",
-        "installments": int(installments),
-        "payment_method_id": payment_method_id,
+        "items": [
+            {
+                "id": str(invoice.id),
+                "title": f"Fatura {invoice.number} - {invoice.project.name}",
+                "description": f"Nostra Codes - {invoice.period}",
+                "quantity": 1,
+                "currency_id": "BRL",
+                "unit_price": float(amount),
+            }
+        ],
         "payer": {
-            "email": payer_email,
+            "name": invoice.client.name,
+            "email": invoice.client.email,
         },
         "external_reference": external_reference,
         "notification_url": f"{base_url}/webhooks/mercadopago",
+        "back_urls": {
+            "success": f"{base_url}/invoices/{invoice.id}/payment/success",
+            "failure": f"{base_url}/invoices/{invoice.id}/payment/failure",
+            "pending": f"{base_url}/invoices/{invoice.id}/payment/pending",
+        },
+        "auto_return": "approved",
         "metadata": {
             "invoice_id": invoice.id,
             "invoice_number": invoice.number,
@@ -137,23 +139,14 @@ def create_card_payment(invoice, payment_data, idempotency_key=None):
         },
     }
 
-    identification = payer.get("identification") or {}
-    if identification.get("type") and identification.get("number"):
-        payload["payer"]["identification"] = {
-            "type": identification.get("type"),
-            "number": identification.get("number"),
-        }
-    if issuer_id:
-        payload["issuer_id"] = str(issuer_id)
-
     statement_descriptor = os.getenv("MERCADO_PAGO_STATEMENT_DESCRIPTOR")
     if statement_descriptor:
         payload["statement_descriptor"] = statement_descriptor[:22]
 
     response = requests.post(
-        f"{MP_API_BASE}/v1/payments",
+        f"{MP_API_BASE}/checkout/preferences",
         json=payload,
-        headers=_headers(idempotency_key),
+        headers=_headers(idempotency_key or str(uuid.uuid4())),
         timeout=20,
     )
     if response.status_code >= 400:
@@ -163,6 +156,13 @@ def create_card_payment(invoice, payment_data, idempotency_key=None):
             error_payload = {"message": response.text, "status": response.status_code}
         raise MercadoPagoPaymentError(error_payload)
     return response.json()
+
+
+def checkout_redirect_url(preference):
+    environment = mercadopago_environment()
+    if environment == "test":
+        return preference.get("sandbox_init_point") or preference.get("init_point")
+    return preference.get("init_point") or preference.get("sandbox_init_point")
 
 
 def fetch_payment(payment_id):
