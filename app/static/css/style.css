@@ -879,3 +879,116 @@ body::before{display:none!important}
   .hero-sales.premium-hero.hero-centered::before,
   .hero-sales.premium-hero.hero-centered .nostra-mesh-background{animation:none!important}
 }
+
+/* CORRECAO FINAL - home full width: o background agora pertence ao topo inteiro, nao ao container central */
+.page.home-page{
+  width:100%;
+  max-width:none;
+  margin:0;
+  padding:0;
+  overflow:hidden;
+}
+.page.home-page > section:not(.hero-sales){
+  width:min(1180px,92vw);
+  margin-left:auto;
+  margin-right:auto;
+}
+.page.home-page > .hero-sales.premium-hero.hero-centered{
+  position:relative;
+  width:100%;
+  max-width:none;
+  margin:0;
+  padding:72px 0 34px;
+  overflow:hidden;
+  isolation:isolate;
+  background-color:#000;
+  background-image:
+    radial-gradient(circle at 14% 18%, rgba(80,32,212,.38) 0 9%, transparent 27%),
+    radial-gradient(circle at 82% 14%, rgba(124,58,237,.30) 0 8%, transparent 26%),
+    radial-gradient(circle at 52% 46%, rgba(168,85,247,.20) 0 8%, transparent 28%),
+    radial-gradient(circle at 24% 82%, rgba(43,18,112,.30) 0 9%, transparent 27%),
+    radial-gradient(circle at 88% 72%, rgba(80,32,212,.22) 0 7%, transparent 25%),
+    linear-gradient(180deg,#000 0%,#020105 45%,#000 100%);
+  background-size:165% 165%;
+  animation:nostra-home-top-background 18s ease-in-out infinite alternate;
+}
+.page.home-page > .hero-sales.premium-hero.hero-centered::before{
+  content:"";
+  position:absolute;
+  inset:-24% -12% 0;
+  z-index:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(80,32,212,.34), transparent 28%),
+    radial-gradient(circle at 74% 20%, rgba(124,58,237,.24), transparent 30%),
+    radial-gradient(circle at 56% 68%, rgba(168,85,247,.17), transparent 32%);
+  background-size:180% 180%;
+  filter:blur(70px) saturate(1.06);
+  opacity:.92;
+  animation:nostra-home-top-background 22s ease-in-out infinite alternate-reverse;
+}
+.page.home-page > .hero-sales.premium-hero.hero-centered::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:1;
+  pointer-events:none;
+  background:
+    linear-gradient(90deg,#000 0%,rgba(0,0,0,.78) 8%,rgba(0,0,0,.10) 30%,rgba(0,0,0,.10) 70%,rgba(0,0,0,.78) 92%,#000 100%),
+    linear-gradient(180deg,rgba(0,0,0,.16) 0%,rgba(0,0,0,.04) 42%,#000 100%);
+}
+.page.home-page > .hero-sales.premium-hero.hero-centered .nostra-mesh-background{
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background:transparent;
+  filter:none;
+  opacity:1;
+  animation:none;
+}
+.page.home-page > .hero-sales.premium-hero.hero-centered .nostra-mesh-background::before{
+  content:"";
+  position:absolute;
+  inset:-18% -10% 5%;
+  background:
+    radial-gradient(circle at 28% 28%, rgba(124,58,237,.20), transparent 26%),
+    radial-gradient(circle at 66% 34%, rgba(80,32,212,.16), transparent 30%),
+    radial-gradient(circle at 48% 76%, rgba(168,85,247,.12), transparent 28%);
+  background-size:170% 170%;
+  filter:blur(58px);
+  animation:nostra-home-top-background 24s ease-in-out infinite alternate;
+}
+.page.home-page > .hero-sales.premium-hero.hero-centered .nostra-mesh-background::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(180deg,rgba(0,0,0,.10),rgba(0,0,0,.18) 58%,#000 100%);
+}
+.page.home-page > .hero-sales.premium-hero.hero-centered .hero-copy{
+  position:relative;
+  z-index:2;
+  width:min(1180px,92vw);
+  max-width:1180px;
+  margin:0 auto;
+}
+@keyframes nostra-home-top-background{
+  0%{background-position:0% 0%;transform:scale(1) translate3d(0,0,0)}
+  28%{background-position:95% 12%;transform:scale(1.035) translate3d(-1%,1%,0)}
+  58%{background-position:100% 88%;transform:scale(1.07) translate3d(1%,-1%,0)}
+  82%{background-position:10% 100%;transform:scale(1.04) translate3d(.8%,1.2%,0)}
+  100%{background-position:0% 0%;transform:scale(1) translate3d(0,0,0)}
+}
+@media(max-width:980px){
+  .page.home-page > .hero-sales.premium-hero.hero-centered{padding-top:54px;background-size:190% 190%}
+  .page.home-page > .hero-sales.premium-hero.hero-centered::before{inset:-18% -28% 8%;filter:blur(54px)}
+}
+@media(max-width:640px){
+  .page.home-page > .hero-sales.premium-hero.hero-centered{padding:42px 0 24px;background-size:220% 220%;animation-duration:22s}
+  .page.home-page > .hero-sales.premium-hero.hero-centered .hero-copy{width:min(100%,92vw)}
+}
+@media(prefers-reduced-motion:reduce){
+  .page.home-page > .hero-sales.premium-hero.hero-centered,
+  .page.home-page > .hero-sales.premium-hero.hero-centered::before,
+  .page.home-page > .hero-sales.premium-hero.hero-centered .nostra-mesh-background::before{animation:none!important}
+}
